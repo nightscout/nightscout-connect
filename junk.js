@@ -577,55 +577,30 @@ function testableLoop ( ) {
           AUTHENTICATION_ERROR: {
             actions: [
               increment_field('authentication_errors'),
-              /*
-              actions.assign({
-                authentication_errors: (context, event) => context.authentication_errors + 1
-              }),
-              */
               actions.log(),
             ]
           },
           AUTHORIZATION_ERROR: {
             actions: [
               increment_field('authorization_errors'),
-              /*
-              actions.assign({
-                authorization_errors: (context, event) => context.authorization_errors + 1
-              }),
-              */
               actions.log(),
             ]
           },
           AUTHENTICATED: {
             actions: [
               increment_field('authentications'),
-              /*
-              actions.assign({
-                authentications: (context, event) => context.authentications + 1
-              }),
-              */
               actions.log(),
             ]
           },
           DATA_RECEIVED: {
             actions: [
               increment_field('data_packets'),
-              /*
-              actions.assign({
-                data_packets: (context, event) => context.data_packets + 1
-              }),
-              */
               actions.log(),
             ]
           },
           DATA_ERROR: {
             actions: [
               increment_field('data_errors'),
-              /*
-              actions.assign({
-                data_errors: (context, event) => context.data_errors + 1
-              }),
-              */
               actions.log(),
             ]
           },
@@ -633,12 +608,6 @@ function testableLoop ( ) {
             actions: [
               increment_field('frame_errors'),
               increment_field('frames_missing'),
-              /*
-              actions.assign({
-                frame_errors: (context, event) => context.frame_errors + 1,
-                frames_missing: (context, event) => context.frames_missing + 1
-              }),
-              */
               actions.log(),
             ]
           },
@@ -646,7 +615,6 @@ function testableLoop ( ) {
             actions: [
               increment_field('frames'),
               actions.assign({
-                // frames: (context, event) => context.frames + 1,
                 frames_missing: 0
               }),
               actions.log(),
@@ -674,39 +642,8 @@ function testableLoop ( ) {
             actions: [
               increment_field('sessions'),
               increment_field('authorizations'),
-              /*
-              actions.assign({
-                // current_session: (context, event) => event.session,
-                sessions: (context, event) => context.sessions + 1,
-                authorizations: (context, event) => context.authorizations + 1
-              }),
-              */
             ],
           },
-          /*
-          FAKE: {
-            actions: [
-              actions.forwardTo('Session'),
-              actions.sendTo('Session', {type: "DEBUG"}),
-              actions.send({type: "DEBUG"}, {to: 'Session'}),
-              // console.log.bind(console, "SESSION_ESTABLISHED did apply Session?"),
-              // sessionExpires,
-              actions.log(),
-            ]
-          },
-          SESSION_EXPIRED: {
-            actions: [
-              actions.assign({
-                current_session: null
-              }),
-              // actions.sendTo('frame', { type: 'SESSION_EXPIRED'}),
-              // actions.sendTo('Session', (context, event) => event),
-              actions.sendTo('frame', { type: 'SESSION_EXPIRED'}),
-              // actions.sendTo('frame', { type: 'SESSION_REFRESH'}),
-              actions.log(),
-            ]
-          },
-          */
           FRAME_DONE: {
             actions: [actions.log(),
               actions.send("STEP"),
@@ -717,15 +654,6 @@ function testableLoop ( ) {
             actions: actions.log()
           },
           STEP: {
-            /*
-            actions: actions.assign({
-              frame: (context, event) => {
-                console.log('setting up new frame', context, event);
-                // fetchMachine);
-                return spawn(fetchMachine);
-              }
-            })
-            */
           }
         },
 
@@ -770,11 +698,6 @@ function testableLoop ( ) {
                   onDone: {
                     actions: [
                       increment_field('success'),
-                      /*
-                      actions.assign({
-                        success: (context, event) => context.success + 1
-                      }),
-                      */
                       'log',
                       actions.log(),
                     ],
@@ -783,11 +706,6 @@ function testableLoop ( ) {
                   onError: {
                     actions: [
                       increment_field('failures'),
-                      /*
-                      actions.assign({
-                        failures: (context, event) => context.failures + 1
-                      }),
-                      */
                       'log',
                       actions.log(),
                     ],
@@ -798,11 +716,6 @@ function testableLoop ( ) {
               After: {
                 entry: [
                   increment_field('runs'),
-                  /*
-                  actions.assign({
-                    runs: (context, event) => context.runs + 1
-                  }),
-                  */
                   actions.log(),
                 ],
                 // always: { target: 'Ready' },
