@@ -59,6 +59,14 @@ function backoff (config) {
   return duration_for;
 }
 
+function builder ( ) {
+
+  function framer (config) {
+
+  }
+  return framer;
+}
+
 var testImpl = require('./lib/drivers/testable');
 function testableLoop ( ) {
 
@@ -92,21 +100,10 @@ function testableLoop ( ) {
       console.log('MAYBE FETCH', context, event);
       return impl.dataFromSesssion(context.session)
     },
-    resolveSession (context, event) {
-      if (context.session) {
-        console.log("REUSE SESSION", context.session);
-        return Promise.resolve(context.session);
-      }
-      return impl.authFromCredentials()
-        .then(impl.sessionFromAuth);
-
-    },
-    reuseSession (context, event) {
-      return Promise.resolve(context.session);
-    }
   };
   // need builder pattern to give to impl to customize machine
   // eg, refresh, priming, retry
+  // multiple loops, eg daily, hourly, 5 minute
   // for infinite loops, is the data interval expected to be 5 minutes,
   // or do things change if it's potentially several hours between
   // expected syncs?
@@ -273,10 +270,10 @@ function testableLoop ( ) {
           actions.log()
         ],
         after: [
-          { delay: 1600,
+          { id: 'refresh_timer', delay: 1600,
             actions: [ actions.send("SESSION_REFRESH") ],
           },
-          { delay: 2200,
+          { id: 'expired_timer', delay: 2200,
           target: 'Expired'
           }
         ],
@@ -310,16 +307,13 @@ function testableLoop ( ) {
   });
 
 
-  const fetchMachine = (context, event) => {
-    console.log("DEBUG INIT CHILD", context, event);
-    var orig = context;
-    return Machine({
+  const fetchMachine = Machine({
     id: 'phase',
     initial: 'Idle',
     context: {
       retries: 0,
       duration: 0,
-      session: context.current_session,
+      session: null,
       diagnostics: {
       }
     },
@@ -354,7 +348,7 @@ function testableLoop ( ) {
           actions.send({ type: 'CONTINUE' }, {
             delay: (context, event) => {
               var duration = frame_retry_duration(context.retries);
-              console.log("CREATE RETRY DELAY", duration, context, event);
+              console.log("RETRY DELAY", duration, context, event);
               return duration;
 
             }
@@ -510,9 +504,25 @@ function testableLoop ( ) {
       
     }
   });
-  }
     
   const delay_per_frame_error = backoff({interval_ms: 2500 });
+  const pollingConfig = {
+    services: {
+    },
+    actions: {
+    },
+    guards: {
+    },
+    delays: {
+    }
+  };
+
+  function increment_field (name) {
+    return actions.assign({
+      [name]: (context, event) => context[name] + 1
+    });
+  }
+
   const pollingMachine = Machine({
     id: 'Poller',
     initial: 'Idle',
@@ -545,6 +555,7 @@ function testableLoop ( ) {
       Running: {
         // entry: [ actions.send("STEP"), ],
         invoke: {
+          // tickDemo
           src: (context) => (cb) => {
             console.log("tock setting up ticks");
             const interval = setInterval(() => {
@@ -565,57 +576,77 @@ function testableLoop ( ) {
           },
           AUTHENTICATION_ERROR: {
             actions: [
+              increment_field('authentication_errors'),
+              /*
               actions.assign({
                 authentication_errors: (context, event) => context.authentication_errors + 1
               }),
+              */
               actions.log(),
             ]
           },
           AUTHORIZATION_ERROR: {
             actions: [
+              increment_field('authorization_errors'),
+              /*
               actions.assign({
                 authorization_errors: (context, event) => context.authorization_errors + 1
               }),
+              */
               actions.log(),
             ]
           },
           AUTHENTICATED: {
             actions: [
+              increment_field('authentications'),
+              /*
               actions.assign({
                 authentications: (context, event) => context.authentications + 1
               }),
+              */
               actions.log(),
             ]
           },
           DATA_RECEIVED: {
             actions: [
+              increment_field('data_packets'),
+              /*
               actions.assign({
                 data_packets: (context, event) => context.data_packets + 1
               }),
+              */
               actions.log(),
             ]
           },
           DATA_ERROR: {
             actions: [
+              increment_field('data_errors'),
+              /*
               actions.assign({
                 data_errors: (context, event) => context.data_errors + 1
               }),
+              */
               actions.log(),
             ]
           },
           FRAME_ERROR: {
             actions: [
+              increment_field('frame_errors'),
+              increment_field('frames_missing'),
+              /*
               actions.assign({
                 frame_errors: (context, event) => context.frame_errors + 1,
                 frames_missing: (context, event) => context.frames_missing + 1
               }),
+              */
               actions.log(),
             ]
           },
           FRAME_SUCCESS: {
             actions: [
+              increment_field('frames'),
               actions.assign({
-                frames: (context, event) => context.frames + 1,
+                // frames: (context, event) => context.frames + 1,
                 frames_missing: 0
               }),
               actions.log(),
@@ -641,11 +672,15 @@ function testableLoop ( ) {
           },
           SESSION_ESTABLISHED: {
             actions: [
+              increment_field('sessions'),
+              increment_field('authorizations'),
+              /*
               actions.assign({
                 // current_session: (context, event) => event.session,
                 sessions: (context, event) => context.sessions + 1,
                 authorizations: (context, event) => context.authorizations + 1
               }),
+              */
             ],
           },
           /*
@@ -699,6 +734,7 @@ function testableLoop ( ) {
           Session: {
             invoke: {
               id: 'Session',
+              // sessionService
               src: sessionMachine,
               // onDone: { },
               // onError: { }
@@ -728,22 +764,31 @@ function testableLoop ( ) {
                 invoke: {
                   // src: (context, event) { },
                   id: 'frame',
+                  // fetchService
                   src: fetchMachine,
 
                   onDone: {
                     actions: [
+                      increment_field('success'),
+                      /*
                       actions.assign({
                         success: (context, event) => context.success + 1
                       }),
+                      */
+                      'log',
                       actions.log(),
                     ],
                     target: 'After',
                   },
                   onError: {
                     actions: [
+                      increment_field('failures'),
+                      /*
                       actions.assign({
                         failures: (context, event) => context.failures + 1
                       }),
+                      */
+                      'log',
                       actions.log(),
                     ],
                     target: 'After',
@@ -752,13 +797,17 @@ function testableLoop ( ) {
               },
               After: {
                 entry: [
+                  increment_field('runs'),
+                  /*
                   actions.assign({
                     runs: (context, event) => context.runs + 1
                   }),
+                  */
                   actions.log(),
                 ],
                 // always: { target: 'Ready' },
                 // Estimated data refresh interval
+                // correct time is expected data cycle time + mobile_lag + jitter
                 after: [
                   {
                     target: 'Ready',
@@ -773,7 +822,7 @@ function testableLoop ( ) {
       }
       
     }
-  });
+  }).withConfig(pollingConfig);
   return pollingMachine;
 }
 
@@ -788,5 +837,5 @@ if (!module.parent) {
   actor.send({type: 'START'});
   setTimeout(( ) => {
   actor.send({type: 'STOP'});
-  }, 60000 * 2);
+  }, 60000 * 5);
 }
