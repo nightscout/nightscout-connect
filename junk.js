@@ -119,6 +119,8 @@ function testableLoop ( ) {
     guards: {
     },
     delays: {
+      REFRESH_AFTER_SESSSION_DELAY: 1600,
+      EXPIRE_SESSION_DELAY: 2200,
     }
   };
   const sessionMachine = Machine({
@@ -272,10 +274,10 @@ function testableLoop ( ) {
           actions.log()
         ],
         after: [
-          { id: 'refresh_timer', delay: 1600,
+          { delay: 'REFRESH_AFTER_SESSSION_DELAY',
             actions: [ actions.send("SESSION_REFRESH") ],
           },
-          { id: 'expired_timer', delay: 2200,
+          { delay: 'EXPIRE_SESSION_DELAY',
           target: 'Expired'
           }
         ],
@@ -325,6 +327,13 @@ function testableLoop ( ) {
       }
     },
     delays: {
+      WAIT_BEFORE_RETRY_DELAY: (context, event) => {
+        var duration = frame_retry_duration(context.retries);
+        console.log("RETRY DELAY", duration, context, event);
+        return duration;
+
+      }
+
     },
   };
   const fetchMachine = Machine({
@@ -369,12 +378,7 @@ function testableLoop ( ) {
           }),
 
           actions.send({ type: 'CONTINUE' }, {
-            delay: (context, event) => {
-              var duration = frame_retry_duration(context.retries);
-              console.log("RETRY DELAY", duration, context, event);
-              return duration;
-
-            }
+            delay: 'WAIT_BEFORE_RETRY_DELAY',
           })
         ],
         after: [ ],
@@ -527,6 +531,13 @@ function testableLoop ( ) {
     guards: {
     },
     delays: {
+      MAIN_CYCLE_DELAY: (context, event) => {
+        var duration = delay_per_frame_error(context.frames_missing);
+        console.log('DELAY OPERATING', duration, context, event);
+        return duration;
+
+      },
+      EXPECTED_DATA_INTERVAL_DELAY: 333
     }
   };
 
@@ -690,12 +701,7 @@ function testableLoop ( ) {
                 after: [
                   {
                     target: 'Operating',
-                    delay: (context, event) => {
-                      var duration = delay_per_frame_error(context.frames_missing);
-                      console.log('DELAY OPERATING', duration, context, event);
-                      return duration;
-
-                    }
+                    delay: 'MAIN_CYCLE_DELAY',
                   }
                 ],
                 // always: { target: 'Operating' }
@@ -738,7 +744,7 @@ function testableLoop ( ) {
                 after: [
                   {
                     target: 'Ready',
-                    delay: 333
+                    delay: 'EXPECTED_DATA_INTERVAL_DELAY'
                   }
                 ],
                 on: { }
