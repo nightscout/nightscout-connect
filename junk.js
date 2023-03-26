@@ -108,18 +108,19 @@ function testableLoop ( ) {
   // or do things change if it's potentially several hours between
   // expected syncs?
 
-  const sessionExpires = (context, event) => (cb) => {
-    var sessionTTL = 1500 + (Math.random( ) * 750);
-    console.log("tock setting up ticks");
-    const interval = setTimeout(() => {
-      cb({type: "SESSION_EXPIRED"});
-    }, sessionTTL);
 
-    return () => {
-      clearTimeout(interval);
+  var sessionConfig = {
+    services: {
+      doAuthenticate: services.maybeAuthenticate,
+      doAuthorize: services.maybeAuthorize,
+    },
+    actions: {
+    },
+    guards: {
+    },
+    delays: {
     }
-  }
-
+  };
   const sessionMachine = Machine({
     id: 'session',
     initial: 'Inactive',
@@ -188,7 +189,7 @@ function testableLoop ( ) {
           },
           Authenticating: {
             invoke: {
-              src: services.maybeAuthenticate,
+              src: 'doAuthenticate',
               onDone: {
                 target: 'Authorizing',
                 actions: [actions.assign({
@@ -222,7 +223,8 @@ function testableLoop ( ) {
           },
           Authorizing: {
             invoke: {
-              src: services.maybeAuthorize,
+              // maybeAuthorize
+              src: 'doAuthorize',
               onDone: {
                 target: 'Established',
                 actions: [actions.assign({
@@ -288,6 +290,7 @@ function testableLoop ( ) {
               actions.sendParent((context, event) => ({
                 type: 'REUSED_ESTABLISHED_SESSION',
               })),
+              // reuseActiveSession
               actions.sendParent((context, event) => ({ type: 'SESSION_RESOLVED', session: context.session})),
             ]
           },
@@ -304,9 +307,26 @@ function testableLoop ( ) {
         ]
       },
     }
-  });
+  }, sessionConfig);
 
 
+  const fetchConfig = {
+    actions: {
+    },
+    services: {
+      dataFetchService: services.maybeFetch
+    },
+    guards: {
+      shouldRetry: (context, event, transition) => {
+        console.log("THIRD ARG STATE META", transition.state.meta);
+        console.log("THIRD ARG machine meta", transition.state.machine.meta);
+        console.log("THIRD ARG FULL", transition);
+        return context.retries < transition.cond.maxRetries
+      }
+    },
+    delays: {
+    },
+  };
   const fetchMachine = Machine({
     id: 'phase',
     initial: 'Idle',
@@ -316,6 +336,9 @@ function testableLoop ( ) {
       session: null,
       diagnostics: {
       }
+    },
+    meta: {
+      foo: 'machineBarMeta',
     },
     on: {
       SESSION_EXPIRED: [
@@ -354,20 +377,6 @@ function testableLoop ( ) {
             }
           })
         ],
-        /*
-        invoke: {
-          src: services.maybeWaiting,
-          onDone: {
-            target: 'Auth',
-            // actions: actions.assign({ authInfo: (context, event) => event.data })
-            actions: [
-        ],
-          },
-          onError: {
-            target: 'Error'
-          }
-        },
-        */
         after: [ ],
         exit: [
           actions.assign({
@@ -384,14 +393,6 @@ function testableLoop ( ) {
       Auth: {
         entry: actions.sendParent('SESSION_REQUIRED'),
         on: {
-          /*
-          SESSION_REQUIRED: [
-            { target: '.Established',
-              cond: (context, event) => context.session
-            },
-            { target: '.Fresh' }
-          ],
-          */
           RESOLVE: 'Fetching',
           SESSION_ERROR: {
             target: 'Error',
@@ -415,7 +416,7 @@ function testableLoop ( ) {
       
       Fetching: {
         invoke: {
-          src: services.maybeFetch,
+          src: 'dataFetchService',
           onDone: {
             target: 'Transforming',
             actions: [ actions.assign({
@@ -474,11 +475,18 @@ function testableLoop ( ) {
       },
       Error: {
         // type: 'final',
+        meta: {
+          foomaxErrors: 3,
+        },
         entry: actions.sendParent({type: "FRAME_ERROR"}),
         always: [
           {
             target: 'Retry',
-            cond: (context, event) => context.retries < 3
+            // cond: (context, event) => context.retries < 3
+            cond: {
+              type: 'shouldRetry',
+              maxRetries: 3,
+            },
           },
           { target: 'Done' }
 
@@ -486,9 +494,12 @@ function testableLoop ( ) {
       },
       Retry: {
         entry: [
+          increment_field('retries'),
+          /*
           actions.assign({
             retries: (context, event) => context.retries + 1
           }),
+          */
           actions.send('FRAME_BACKOFF')
         ],
         on: {
@@ -503,11 +514,13 @@ function testableLoop ( ) {
       }
       
     }
-  });
+  }, fetchConfig);
     
   const delay_per_frame_error = backoff({interval_ms: 2500 });
   const pollingConfig = {
     services: {
+      sessionService: sessionMachine,
+      fetchService: fetchMachine,
     },
     actions: {
     },
@@ -662,8 +675,8 @@ function testableLoop ( ) {
           Session: {
             invoke: {
               id: 'Session',
-              // sessionService
-              src: sessionMachine,
+              src: 'sessionService',
+              // src: sessionMachine,
               // onDone: { },
               // onError: { }
             }
@@ -692,8 +705,9 @@ function testableLoop ( ) {
                 invoke: {
                   // src: (context, event) { },
                   id: 'frame',
+                  src: 'fetchService',
                   // fetchService
-                  src: fetchMachine,
+                  // src: fetchMachine,
 
                   onDone: {
                     actions: [
