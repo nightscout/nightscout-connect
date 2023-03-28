@@ -68,6 +68,8 @@ function builder ( ) {
 }
 
 var testImpl = require('./lib/drivers/testable');
+var axios = require('axios');
+
 function testableLoop ( ) {
 
   // Available variables:
@@ -81,7 +83,7 @@ function testableLoop ( ) {
   // - actions
   // - XState (all XState exports)
   
-  var impl = testImpl.fakeFrame( );
+  var impl = testImpl.fakeFrame({ }, axios, builder( ));
   var frame_retry_duration = backoff( );
   var services = {
     maybeWaiting (context, event) {
@@ -521,9 +523,14 @@ function testableLoop ( ) {
   }, fetchConfig);
     
   const delay_per_frame_error = backoff({interval_ms: 2500 });
-  const pollingConfig = {
+  function increment_field (name) {
+    return actions.assign({
+      [name]: (context, event) => context[name] + 1
+    });
+  }
+
+  const loopConfig = {
     services: {
-      sessionService: sessionMachine,
       fetchService: fetchMachine,
     },
     actions: {
@@ -540,23 +547,143 @@ function testableLoop ( ) {
       EXPECTED_DATA_INTERVAL_DELAY: 333
     }
   };
+  const loopMachine = Machine({
+    id: 'loop',
+    initial: 'Ready',
+    context: {
+      frames_missing: 0,
+      runs: 0,
+      success: 0,
+      data_packets: 0,
+      data_errors: 0,
+      frames: 0,
+      frame_errors: 0,
+      frames_missing: 0,
+    },
+    on: {
+      DATA_RECEIVED: {
+        actions: [
+          increment_field('data_packets'),
+          actions.log(),
+        ]
+      },
+      DATA_ERROR: {
+        actions: [
+          increment_field('data_errors'),
+          actions.log(),
+        ]
+      },
+      FRAME_ERROR: {
+        actions: [
+          increment_field('frame_errors'),
+          increment_field('frames_missing'),
+          actions.log(),
+        ]
+      },
+      FRAME_SUCCESS: {
+        actions: [
+          increment_field('frames'),
+          actions.assign({
+            frames_missing: 0
+          }),
+          actions.log(),
+        ]
+      },
+      SESSION_RESOLVED: {
+        actions: [
+          actions.forwardTo('frame')
+        ]
+      },
+      SESSION_ERROR: {
+        actions: [
+          actions.forwardTo('frame')
+        ]
+      },
+      SESSION_REQUIRED: {
+        actions: [
+          actions.sendParent((_, evt) => evt),
+        ]
+      }
+    },
+    states: {
+      Ready: {
+        // entry: [ ]
+        on: { },
+        after: [
+          {
+            target: 'Operating',
+            delay: 'MAIN_CYCLE_DELAY',
+          }
+        ],
+        // always: { target: 'Operating' }
+      },
+      Operating: {
+        entry: [actions.log() ],
+        invoke: {
+          // src: (context, event) { },
+          id: 'frame',
+          src: 'fetchService',
+          // fetchService
+          // src: fetchMachine,
 
-  function increment_field (name) {
-    return actions.assign({
-      [name]: (context, event) => context[name] + 1
-    });
-  }
+          onDone: {
+            actions: [
+              increment_field('success'),
+              actions.sendParent((_, evt) => evt),
+              'log',
+              actions.log(),
+            ],
+            target: 'After',
+          },
+          onError: {
+            actions: [
+              increment_field('failures'),
+              actions.sendParent((_, evt) => evt),
+              'log',
+              actions.log(),
+            ],
+            target: 'After',
+          },
+        }
+      },
+      After: {
+        entry: [
+          increment_field('runs'),
+          actions.log(),
+        ],
+        // always: { target: 'Ready' },
+        // Estimated data refresh interval
+        // correct time is expected data cycle time + mobile_lag + jitter
+        after: [
+          {
+            target: 'Ready',
+            delay: 'EXPECTED_DATA_INTERVAL_DELAY'
+          }
+        ],
+        on: { }
+      }
+    }
+  }, loopConfig);
+
+  const pollingConfig = {
+    services: {
+      sessionService: sessionMachine,
+      cycleService: loopMachine,
+    },
+    actions: {
+    },
+    guards: {
+    },
+    delays: {
+    }
+  };
 
   const pollingMachine = Machine({
     id: 'Poller',
     initial: 'Idle',
     context: {
       retries: 0,
-      runs: 0,
-      success: 0,
-      data_packets: 0,
-      data_errors: 0,
-      current_session: null,
+
       sessions: 0,
       // session_errors: 0,
       // reused_sessions: 0,
@@ -564,9 +691,7 @@ function testableLoop ( ) {
       authentication_errors: 0,
       authorizations: 0,
       authorization_errors: 0,
-      frames: 0,
-      frame_errors: 0,
-      frames_missing: 0,
+
       failures: 0,
       // stale/ailing/failed
     },
@@ -598,52 +723,24 @@ function testableLoop ( ) {
               actions.log(),
             ]
           },
-          AUTHENTICATION_ERROR: {
-            actions: [
-              increment_field('authentication_errors'),
-              actions.log(),
-            ]
-          },
-          AUTHORIZATION_ERROR: {
-            actions: [
-              increment_field('authorization_errors'),
-              actions.log(),
-            ]
-          },
-          AUTHENTICATED: {
-            actions: [
-              increment_field('authentications'),
-              actions.log(),
-            ]
-          },
-          DATA_RECEIVED: {
-            actions: [
-              increment_field('data_packets'),
-              actions.log(),
-            ]
-          },
-          DATA_ERROR: {
-            actions: [
-              increment_field('data_errors'),
-              actions.log(),
-            ]
-          },
-          FRAME_ERROR: {
-            actions: [
-              increment_field('frame_errors'),
-              increment_field('frames_missing'),
-              actions.log(),
-            ]
-          },
-          FRAME_SUCCESS: {
-            actions: [
-              increment_field('frames'),
-              actions.assign({
-                frames_missing: 0
-              }),
-              actions.log(),
-            ]
-          },
+      AUTHENTICATION_ERROR: {
+        actions: [
+          increment_field('authentication_errors'),
+          actions.log(),
+        ]
+      },
+      AUTHORIZATION_ERROR: {
+        actions: [
+          increment_field('authorization_errors'),
+          actions.log(),
+        ]
+      },
+      AUTHENTICATED: {
+        actions: [
+          increment_field('authentications'),
+          actions.log(),
+        ]
+      },
           SESSION_REQUIRED: {
             actions: [
               actions.log(),
@@ -653,13 +750,21 @@ function testableLoop ( ) {
           SESSION_RESOLVED: {
             actions: [
               actions.log(),
-              actions.forwardTo('frame'),
+              (context, event, state, fourth) => {
+                console.log("DEBUG SESSION_RESOLVED", context, event, state, fourth);
+              },
+              (context, event, state, fourth) => {
+                console.log("FORWARD TO FRAME??");
+              },
+              // actions.forwardTo('frame'),
+              actions.forwardTo('Cycle'),
             ],
           },
           SESSION_ERROR: {
             actions: [
               actions.log(),
-              actions.forwardTo('frame'),
+              // actions.forwardTo('frame'),
+              actions.forwardTo('Cycle'),
             ],
           },
           SESSION_ESTABLISHED: {
@@ -678,7 +783,15 @@ function testableLoop ( ) {
             actions: actions.log()
           },
           STEP: {
+          },
+          '*': {
+            actions: [
+              (context, event, state, fourth) => {
+                console.log("DEBUG *", context, event, state, fourth);
+              },
+            ],
           }
+
         },
 
         type: 'parallel',
@@ -693,63 +806,10 @@ function testableLoop ( ) {
             }
           },
           Cycle: {
-            initial: 'Ready',
-            states: {
-              Ready: {
-                // entry: [ ]
-                on: { },
-                after: [
-                  {
-                    target: 'Operating',
-                    delay: 'MAIN_CYCLE_DELAY',
-                  }
-                ],
-                // always: { target: 'Operating' }
-              },
-              Operating: {
-                entry: [actions.log() ],
-                invoke: {
-                  // src: (context, event) { },
-                  id: 'frame',
-                  src: 'fetchService',
-                  // fetchService
-                  // src: fetchMachine,
-
-                  onDone: {
-                    actions: [
-                      increment_field('success'),
-                      'log',
-                      actions.log(),
-                    ],
-                    target: 'After',
-                  },
-                  onError: {
-                    actions: [
-                      increment_field('failures'),
-                      'log',
-                      actions.log(),
-                    ],
-                    target: 'After',
-                  },
-                }
-              },
-              After: {
-                entry: [
-                  increment_field('runs'),
-                  actions.log(),
-                ],
-                // always: { target: 'Ready' },
-                // Estimated data refresh interval
-                // correct time is expected data cycle time + mobile_lag + jitter
-                after: [
-                  {
-                    target: 'Ready',
-                    delay: 'EXPECTED_DATA_INTERVAL_DELAY'
-                  }
-                ],
-                on: { }
-              }
-            }
+            invoke: {
+              id: 'Cycle',
+              src: 'cycleService'
+            },
           }
         }
       }
