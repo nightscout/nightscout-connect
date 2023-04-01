@@ -59,10 +59,36 @@ function backoff (config) {
   return duration_for;
 }
 
+
 function builder ( ) {
 
-  function framer (config) {
+  var impl = { };
+  var OperatingStates = {
+  };
 
+  var session_consumers = [ ];
+
+  function framer (config) {
+    return { services: impl, states: OperatingStates, session_consumers };
+
+  }
+
+  framer.support_session = (details) => {
+    impl = { ...details, ...impl };
+    return framer;
+  }
+  framer.register_loop = (name, cfg) => {
+    session_consumers.push(name);
+    serviceName = [name, 'Service'].join('');
+    impl[serviceName] = (context, event) => cfg.frame.impl(context.session);
+    OperatingStates[name] = {
+      invoke: {
+        id: name,
+        src: serviceName,
+        // src: cfg.frame.impl
+      }
+    };
+    return framer;
   }
   return framer;
 }
@@ -83,13 +109,20 @@ function testableLoop ( ) {
   // - actions
   // - XState (all XState exports)
   
-  var impl = testImpl.fakeFrame({ }, axios, builder( ));
+  var make = builder( );
+  var impl = testImpl.fakeFrame({ }, axios);
+
   var frame_retry_duration = backoff( );
+  impl.generate_driver(make);
+
+  // these results aren't quite right to use, ignored below.
+  var built = make( );
+  console.log("BUILDER OUTPUT", built);
+
+  // should this interface be generated in the builder, defined on their own,
+  // or explicitly defined by each driver?
+  // they mahave difference needs for getters/setters on context?
   var services = {
-    maybeWaiting (context, event) {
-      console.log("MAYBE WAIT?", context, event);
-      return Promise.resolve();
-    },
     maybeAuthenticate (context, event) {
       console.log('MAYBE AUTH with', context, event);
       return impl.authFromCredentials();
@@ -103,6 +136,7 @@ function testableLoop ( ) {
       return impl.dataFromSesssion(context.session)
     },
   };
+
   // need builder pattern to give to impl to customize machine
   // eg, refresh, priming, retry
   // multiple loops, eg daily, hourly, 5 minute
@@ -322,9 +356,6 @@ function testableLoop ( ) {
     },
     guards: {
       shouldRetry: (context, event, transition) => {
-        console.log("THIRD ARG STATE META", transition.state.meta);
-        console.log("THIRD ARG machine meta", transition.state.machine.meta);
-        console.log("THIRD ARG FULL", transition);
         return context.retries < transition.cond.maxRetries
       }
     },
@@ -704,6 +735,8 @@ function testableLoop ( ) {
       Running: {
         // entry: [ actions.send("STEP"), ],
         invoke: {
+          // Hello World test/exercise. Helps evaluate tempo when looking at
+          // output.
           // tickDemo
           src: (context) => (cb) => {
             console.log("tock setting up ticks");
@@ -723,6 +756,7 @@ function testableLoop ( ) {
               actions.log(),
             ]
           },
+      // should session track it's own telemetry
       AUTHENTICATION_ERROR: {
         actions: [
           increment_field('authentication_errors'),
@@ -747,14 +781,20 @@ function testableLoop ( ) {
               actions.forwardTo('Session'),
             ],
           },
+
+          /*
+          * SESSION_RESOLVED and SESSION_ERROR need to be forwardTo the list
+          * of session_consumers, several ways to potentially using actions.
+          * one is to refer to a single action which has a closure around the
+          * list, another is to create an actions list... maybe naming and
+          * choosing all them to make it delarative?
+          * // ...built.session_consumers.map((consumer) => actions.forwardTo(consumer))
+          **/
           SESSION_RESOLVED: {
             actions: [
               actions.log(),
               (context, event, state, fourth) => {
-                console.log("DEBUG SESSION_RESOLVED", context, event, state, fourth);
-              },
-              (context, event, state, fourth) => {
-                console.log("FORWARD TO FRAME??");
+                // console.log("FORWARD TO FRAME", context, event, state, fourth);
               },
               // actions.forwardTo('frame'),
               actions.forwardTo('Cycle'),
@@ -784,13 +824,6 @@ function testableLoop ( ) {
           },
           STEP: {
           },
-          '*': {
-            actions: [
-              (context, event, state, fourth) => {
-                console.log("DEBUG *", context, event, state, fourth);
-              },
-            ],
-          }
 
         },
 
@@ -805,7 +838,15 @@ function testableLoop ( ) {
               // onError: { }
             }
           },
+          /*
+          // does not work, yet
+          // should be a composition of the loops defined by the driver.
+          ...built.states
+          */
+          // equivalent helloworld using our fast simulation of a single five minute cycle.
+          // this allows watching the agent go through all states rather quickly.
           Cycle: {
+            tags: ['cycle', 'operation'],
             invoke: {
               id: 'Cycle',
               src: 'cycleService'
