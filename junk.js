@@ -93,7 +93,7 @@ function builder ( ) {
   return framer;
 }
 
-var testImpl = require('./lib/drivers/testable');
+var testImpl = require('./testable_driver');
 var axios = require('axios');
 
 function testableLoop ( ) {
