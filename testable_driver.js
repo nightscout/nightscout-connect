@@ -91,12 +91,16 @@ function fakeFrame (opts, axios) {
     // it's common to need to build a session
     builder.support_session({
       authenticate: impl.authFromCredentials,
-      authorize: impl.sessionFromAuth
+      authorize: impl.sessionFromAuth,
+      // refresh: impl.refreshSession,
+      delays: {
+        REFRESH_AFTER_SESSSION_DELAY: 1600,
+        EXPIRE_SESSION_DELAY: 2200,
+      }
     });
 
     // some drivers have one loop every five minutes, some have others at
     // varying hourly or daily intervals.
-    // this is just stubbing out, it is currently unused
     builder.register_loop('Cycle', {
       frame: {
         impl: impl.dataFromSesssion,
@@ -112,6 +116,20 @@ function fakeFrame (opts, axios) {
     });
     // could be called multiple times
     // builder.register_loop({ ...hourlyConfig });
+    builder.register_loop('AnotherLonger', {
+      frame: {
+        impl: impl.dataFromSesssion,
+        backoff: {
+          interval_ms: 3500
+        },
+        maxRetries: 3
+      },
+      // expected_data_interval_ms: 5 * 60 * 1000
+      expected_data_interval_ms: 2.3 * 60 * 1000,
+      backoff: {
+        interval_ms: 4500
+      },
+    });
 
     return builder;
   }

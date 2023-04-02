@@ -369,6 +369,7 @@ function testableLoop ( ) {
 
     },
   };
+
   const fetchMachine = Machine({
     id: 'phase',
     initial: 'Idle',
