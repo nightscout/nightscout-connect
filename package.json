@@ -6,6 +6,9 @@
   "directories": {
     "lib": "lib"
   },
+  "bin": {
+    "nightscout-connect": "bin/nightscout-connect"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -17,6 +20,7 @@
   "license": "AGPL-3.0-or-later",
   "dependencies": {
     "axios": "^1.3.4",
-    "xstate": "^4.37.1"
+    "xstate": "^4.37.1",
+    "yargs": "^17.7.1"
   }
 }

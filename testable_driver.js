@@ -61,7 +61,14 @@ function fakeFrame (opts, axios) {
       return maybeData;
     },
 
+    fakeTransformGlucose (data) {
+      console.log('MODIFY TRANSFORM GLUCOSE FAKE', data);
+      data.faked = true;
+      data.dateTime =  (new Date()).toISOString();
+      data.date =  (new Date()).getTime();
+      return data;
 
+    },
     simulateBadCreds(ref) {
     },
 
@@ -104,8 +111,10 @@ function fakeFrame (opts, axios) {
     builder.register_loop('Cycle', {
       frame: {
         impl: impl.dataFromSesssion,
+        transform: impl.fakeTransformGlucose,
         backoff: {
         },
+        // transformer
         maxRetries: 3
       },
       // expected_data_interval_ms: 5 * 60 * 1000

@@ -5,7 +5,7 @@ var testImpl = require('./testable_driver');
 var axios = require('axios');
 var builder = require('./lib/builder');
 
-function testableLoop ( ) {
+function demoLoop ( ) {
   
   var make = builder( );
   var impl = testImpl.fakeFrame({ }, axios);
@@ -19,8 +19,8 @@ function testableLoop ( ) {
 
 }
 
-if (!module.parent) {
-  var things = testableLoop( );
+function main ( ) {
+  var things = demoLoop( );
   console.log(things);
   var actor = interpret(things);
   actor.start( );
@@ -30,3 +30,9 @@ if (!module.parent) {
   }, 60000 * 5);
 
 }
+if (!module.parent) {
+  main( );
+}
+module.exports.command = 'demo';
+exports.describe = 'a quick demo using timers instead of I/O';
+module.exports.handler = main;
