@@ -3,13 +3,7 @@
 var argv = require('yargs')
   .scriptName('nightscout-connect')
   .usage('$0 <cmd> [args]')
-  .env("EXTENDED_SETTINGS")
-  .command('hello [name]', 'foo bar', (yargs) => {
-  }, function (argv) {
-    console.log('selected hello?', argv);
-    argv.ok = 1;
-
-  })
+  .env("CONNECT")
   .commandDir('../commands')
   .command(require('../demo'))
   .help( )

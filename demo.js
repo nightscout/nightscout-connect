@@ -7,7 +7,8 @@ var builder = require('./lib/builder');
 
 function demoLoop ( ) {
   
-  var make = builder( );
+  var output = require('./lib/outputs')( )( );
+  var make = builder({ output });
   var impl = testImpl.fakeFrame({ }, axios);
 
   impl.generate_driver(make);
