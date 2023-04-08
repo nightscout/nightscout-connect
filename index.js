@@ -59,12 +59,8 @@ function manage (env, ctx) {
   }
   var impl = driver(validated.config, axios);
   impl.generate_driver(make);
-  var built = make( );
-  var things = built;
-  // console.log("BUILDER OUTPUT", JSON.stringify(built, null, 2));
-  // return built;
+  var things = make( );
 
-  // TODO: consider subscribing to ctx.bus for start/stop.
   function handle ( ) { return actor; };
   handle.run = () => {
     actor.send({type: 'START'});
@@ -76,8 +72,8 @@ function manage (env, ctx) {
   }
 
 
-  // ctx.bus.on('finishBoot', console.log.bind(console, 'DEBUG nightscout-connect'));
-  ctx.bus.once('finishBoot', handle.run);
+  ctx.bus.on('tick', console.log.bind(console, 'DEBUG nightscout-connect'));
+  ctx.bus.once('data-processed', handle.run);
   ctx.bus.once('tearDown', handle.stop);
   // console.log(things);
   var actor = interpret(things);

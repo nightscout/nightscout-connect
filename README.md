@@ -38,6 +38,8 @@ point.
 
 ### Nightscout
 
+> Work in progress
+
 To sync from another Nightscout site, include `CONNECT_SOURCE_ENDPOINT` and
 `CONNECT_SOURCE_API_SECRET`. 
 * `CONNECT_SOURCE=nightscout`
@@ -53,6 +55,6 @@ the site is readable by default.
 
 Select this driver by setting `CONNECT_SOURCE` equal to `nightscout`.
 
-### `NEXT WIP DRIVER`
+### `NEXT work in progress DRIVER`
 
 
