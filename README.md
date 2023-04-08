@@ -1,4 +1,4 @@
-# nightscount-connect
+# nightscout-connect
 
 Nightscout's methods for synchronizing with common diabetes cloud providers.
 This module provides a single entry point to Nightscout for similar modules
@@ -10,6 +10,7 @@ point.
 1. Nightscout
   * [x] hello world
   * [ ] better gap finding
+
 1. [ ] Dexcom
 1. [ ] Medtronic
 1. [ ] Diasend
