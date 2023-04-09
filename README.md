@@ -7,6 +7,7 @@ point.
 
 
 ## Work in progress
+
 1. Nightscout
   * [x] hello world
   * [ ] better gap finding
