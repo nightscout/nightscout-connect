@@ -38,12 +38,42 @@ function main (argv) {
   // argv.apiSecret;
   // 
 
-  var output = { name: 'nightscout', url: argv.nightscoutEndpoint, apiSecret: argv.apiSecret };
+  var endpoint = { name: 'nightscout', url: argv.nightscoutEndpoint, apiSecret: argv.apiSecret };
   console.log("CONFIGURED OUTPUT", output);
   var input = { kind: argv.source, url: argv.sourceEndpoint, apiSecret: argv.sourceApiSecret || '' };
   console.log("CONFIGURED INPUT", input);
 
-  var things = sidecarLoop(input, output, { dir: argv.dir });
+
+  // var things = sidecarLoop(input, output, { dir: argv.dir });
+  var output = outputs(endpoint)(endpoint, axios);
+  var capture = { dir: argv.dir };
+  var make = builder({ output, capture });
+
+  var spec = { kind: 'disabled' };
+  spec.kind = argv.source;
+  // select an available input source implementation based on env
+  // variables/config
+  var driver = sources(spec);
+  var validated = driver.validate(argv);
+  if (validated.errors) {
+    validated.errors.forEach((item) => {
+      console.log(item);
+    });
+  }
+
+  console.log("INPUT PARAMS", spec, validated.config);
+
+  if (!validated.ok) {
+    console.log("Invalid, disabling nightscout-connect", validated);
+    process.exit(1);
+    return;
+  }
+  var impl = driver(validated.config, axios);
+  impl.generate_driver(make);
+  var things = make( );
+
+
+
   console.log(things);
   var actor = interpret(things);
   actor.start( );
