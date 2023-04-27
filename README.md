@@ -36,7 +36,7 @@ point.
 ## Brief Doc
 * `ENABLE=connect` include the keyword `connect` in the `ENABLE` list.
 * Environment variable prefix `CONNECT_`:
-  * `CONNECT_SOURCE` - The name for the source of one of the supported inputs.  one of `nightscout`, `dexcom`, etc...
+  * `CONNECT_SOURCE` - The name for the source of one of the supported inputs.  one of `nightscout`, `dexcomshare`, etc...
 
 ### Nightscout
 
@@ -56,6 +56,18 @@ the query will be used to read information from Nightscout and is optional if
 the site is readable by default.
 
 Select this driver by setting `CONNECT_SOURCE` equal to `nightscout`.
+
+### Dexcom Share
+To synchronize from Dexcom Share use the following variables.
+* `CONNECT_SOURCE=dexcomshare`
+* `CONNECT_SHARE_ACCOUNT_NAME=`
+* `CONNECT_SHARE_PASSWORD=`
+
+Optional, `CONNECT_SHARE_REGION` and `CONNECT_SHARE_SERVER` do the same thing, only specify one.
+* `CONNECT_SHARE_REGION=`  `ous` or `us`. `us` is the default if nothing is
+  provided.  Selecting `us` sets `CONNECT_SHARE_SERVER` to `share2.dexcom.com`.
+  Selecting `ous` here sets `CONNECT_SHARE_SERVER` to `shareous2.dexcom.com`.
+* `CONNECT_SHARE_SERVER=` set the server domain to use.
 
 ### `NEXT work in progress DRIVER`
 
