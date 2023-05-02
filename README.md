@@ -91,6 +91,19 @@ default value for `CONNECT_GLOOKO_ENV` is `default`.
 If both, `CONNECT_GLOOKO_SERVER` and `CONNECT_GLOOKO_ENV` are set, only
 `CONNECT_GLOOKO_SERVER` will be used.
 
+### Libre Link Up
+To synchronize from Libre Link Up use the following variables.
+* `CONNECT_SOURCE=linkup`
+* `CONNECT_LINK_UP_USERNAME=`
+* `CONNECT_LINK_UP_PASSWORD=`
+
+By default, `CONNECT_LINK_UP_SERVER` is set to `api-eu.libreview.io` because the
+default value for `CONNECT_LINK_UP_REGION` is `EU`.
+Other available values for `CONNECT_LINK_UP_REGION`:
+  * `US`, `EU`, `DE`, `FR`, `JP`, `AP`, `AU`, `AE`
+
+For folks connected to many patients, you can provide the patient ID by setting
+the `CONNECT_LINK_UP_PATIENT_ID` variable.
 
 
 ### `NEXT work in progress DRIVER`
