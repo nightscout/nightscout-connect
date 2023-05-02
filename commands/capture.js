@@ -88,6 +88,6 @@ function main (argv) {
 module.exports.command = 'capture <dir> [hint]';
 module.exports.describe = 'Runs as a background server forever.'
 module.exports.builder = (yargs) => yargs
-  .option('source', { alias: 'hint', describe: 'source input', default: 'default', choices: ['dexcomshare', 'default', 'nightscout' ]})
+  .option('source', { alias: 'hint', describe: 'source input', default: 'default', choices: ['dexcomshare', 'default', 'nightscout', 'glooko' ]})
   .option('dir', { describe: 'output directory', default: './har' })
 module.exports.handler = main;
