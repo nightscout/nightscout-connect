@@ -8,16 +8,19 @@ point.
 
 ## Work in progress
 
-1. Nightscout
+* Nightscout
   * [x] hello world
-  * [ ] better gap finding
-
-1. [ ] Dexcom
-1. [ ] Medtronic
-1. [ ] Diasend
-1. [ ] Glooko
-1. [ ] LibreLinkUp
-1. [ ] Tandem
+  * [x] better gap finding
+  * [x] glucose
+  * [ ] treatments, profiles, devicestatus
+* [x] Dexcom
+* [x] Glooko
+  * [x] fetch data
+  * [ ] translate data
+* [ ] Diasend
+* [ ] LibreLinkUp
+* [ ] Medtronic
+* [ ] Tandem
 
 ## Lower priority
 * Better UI integration, diagnostics, test connection, fix errors, manage plugin...
@@ -68,6 +71,27 @@ Optional, `CONNECT_SHARE_REGION` and `CONNECT_SHARE_SERVER` do the same thing, o
   provided.  Selecting `us` sets `CONNECT_SHARE_SERVER` to `share2.dexcom.com`.
   Selecting `ous` here sets `CONNECT_SHARE_SERVER` to `shareous2.dexcom.com`.
 * `CONNECT_SHARE_SERVER=` set the server domain to use.
+
+### Glooko
+
+> Note: Experimental.
+
+To synchronize from Glooko use the following variables.
+* `CONNECT_SOURCE=glooko`
+* `CONNECT_GLOOKO_EMAIL=`
+* `CONNECT_GLOOKO_PASSWORD=`
+
+By default, `CONNECT_GLOOKO_SERVER` is set to `api.glooko.com` because the
+default value for `CONNECT_GLOOKO_ENV` is `default`.
+* `CONNECT_GLOOKO_ENV` is the word `default` by defalt.  Other values are
+  `development`, `production`, for `api.glooko.work`, and
+  `externalapi.glooko.com`, respectively.
+* `CONNECT_GLOOKO_SERVER` the hostname server to use - `api.glooko.com` by `default`.
+
+If both, `CONNECT_GLOOKO_SERVER` and `CONNECT_GLOOKO_ENV` are set, only
+`CONNECT_GLOOKO_SERVER` will be used.
+
+
 
 ### `NEXT work in progress DRIVER`
 
