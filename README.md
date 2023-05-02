@@ -16,9 +16,9 @@ point.
 * [x] Dexcom
 * [x] Glooko
   * [x] fetch data
-  * [ ] translate data
+  * [x] translate data (likely needs work)
+* [x] LibreLinkUp (needs testing)
 * [ ] Diasend
-* [ ] LibreLinkUp
 * [ ] Medtronic
 * [ ] Tandem
 
