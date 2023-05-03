@@ -20,6 +20,7 @@ point.
 * [x] LibreLinkUp (needs testing)
 * [ ] Diasend
 * [ ] Medtronic
+* [ ] Tidepool
 * [ ] Tandem
 
 ## Lower priority
@@ -60,6 +61,8 @@ the site is readable by default.
 
 Select this driver by setting `CONNECT_SOURCE` equal to `nightscout`.
 
+
+
 ### Dexcom Share
 To synchronize from Dexcom Share use the following variables.
 * `CONNECT_SOURCE=dexcomshare`
@@ -71,6 +74,7 @@ Optional, `CONNECT_SHARE_REGION` and `CONNECT_SHARE_SERVER` do the same thing, o
   provided.  Selecting `us` sets `CONNECT_SHARE_SERVER` to `share2.dexcom.com`.
   Selecting `ous` here sets `CONNECT_SHARE_SERVER` to `shareous2.dexcom.com`.
 * `CONNECT_SHARE_SERVER=` set the server domain to use.
+
 
 ### Glooko
 
@@ -107,5 +111,32 @@ the `CONNECT_LINK_UP_PATIENT_ID` variable.
 
 
 ### `NEXT work in progress DRIVER`
+
+## History
+
+Initially there was `share2nightscout-bridge`, then
+[`minimed-connect-to-nightscout`](https://github.com/nightscout/minimed-connect-to-nightscout).
+The `request` library was deprecated in February, 2020, and Nightscout needs to
+adapt by using currently maintained and supported dependencies.  The initial
+goal is to help deprecate `share2nightscout-bridge` and use currently supported
+dependencies.
+Now there are more:
+* https://github.com/burnedikt/diasend-nightscout-bridge
+* https://github.com/jpollock/glooko2nightscout-bridge
+* https://github.com/timoschlueter/nightscout-librelink-up
+* https://github.com/jwoglom/tconnectsync
+* https://github.com/skalahonza/TidepoolToNightScoutSync
+
+This module should be sufficient to replace `share2nightscout-bridge` as an
+initial minimum viable project.  There are a few minor enhancements to help
+encourage migration away from `share2nightscout-bridge`:
+* Less latency: new glucose fetches will be tightly aligned to the previous glucose reading.
+  In most cases, new glucose readings will be produced within 30 seconds.
+* Safe retries: There is an exponential backoff system to help prevent locking
+  your account if the password changes.  Each retry will take a much longer
+  amount of time.
+* Safe community: There are now randomization behaviors to prevent tragedy of
+  the commons from occurring.  These features help spread the load to avoid
+  accidentally overwhelming vendor servers.
 
 

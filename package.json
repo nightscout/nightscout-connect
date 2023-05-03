@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "/home/bewest/src/nightscout-cloud-import"
+    "url": "https://github.com/nightscout/nightscout-connect.git"
   },
   "author": "Ben West",
   "license": "AGPL-3.0-or-later",
