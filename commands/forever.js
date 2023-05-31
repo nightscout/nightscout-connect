@@ -56,5 +56,5 @@ function main (argv) {
 
 module.exports.command = 'forever [hint]';
 module.exports.describe = 'Runs as a background server forever.'
-module.exports.builder = (yargs) => yargs.option('source', { alias: 'hint', describe: 'source input', default: 'default', choices: ['dexcomshare', 'default', 'nightscout' ]})
+module.exports.builder = (yargs) => yargs.option('source', { alias: 'hint', describe: 'source input', default: 'default', choices: Object.keys(sources.kinds)})
 module.exports.handler = main;
