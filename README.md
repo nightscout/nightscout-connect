@@ -19,7 +19,11 @@ point.
   * [x] translate data (likely needs work)
 * [x] LibreLinkUp (needs testing)
 * [ ] Diasend
-* [ ] Medtronic
+* [x] Medtronic
+  * [x] hello world
+  * [x] glucose
+  * [ ] treatments, profiles, devicestatus
+  * [ ] sync data to Nightscout
 * [ ] Tidepool
 * [ ] Tandem
 
@@ -108,6 +112,20 @@ Other available values for `CONNECT_LINK_UP_REGION`:
 
 For folks connected to many patients, you can provide the patient ID by setting
 the `CONNECT_LINK_UP_PATIENT_ID` variable.
+
+### Minimed Carelink
+> Note: Experimental, only glucose for patient role is supported in
+> proof of concept work.
+
+To synchronize from Medtronic Minimed Carelink, set the following
+environment variables.
+* `CONNECT_SOURCE=minimedcarelink`
+* `CONNECT_CARELINK_USERNAME`
+* `CONNECT_CARELINK_PASSWORD`
+* `CONNECT_CARELINK_REGION` Either `eu` to set `CONNECT_CARELINK_SERVER` to `carelink.minimed.eu` or `us` to use `carelink.minimed.com`.
+
+For folk using the new Many to Many feature, please provide the username
+of the ~~patient to follow using `CONNECT_`~~
 
 
 ### `NEXT work in progress DRIVER`
