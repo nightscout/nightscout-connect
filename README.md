@@ -121,11 +121,11 @@ environment variables.
 * `CONNECT_SOURCE=minimedcarelink`
 * `CONNECT_CARELINK_USERNAME`
 * `CONNECT_CARELINK_PASSWORD`
-* `CONNECT_CARELINK_REGION` Either `eu` to set `CONNECT_CARELINK_SERVER` to `carelink.minimed.eu` or `us` to use `carelink.minimed.com`.
+* `CONNECT_CARELINK_REGION` Either `eu` to set `CONNECT_CARELINK_SERVER` to
+  `carelink.minimed.eu` or `us` to use `carelink.minimed.com`.
 
-For folk using the new Many to Many feature, please provide the username
-of the ~~patient to follow using `CONNECT_`~~
-
+For folk using the new Many to Many feature, please provide the username of the
+patient to follow using `CONNECT_CARELINK_PATIENT_USERNAME` variable.
 
 ### `NEXT work in progress DRIVER`
 
