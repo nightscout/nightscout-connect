@@ -20,7 +20,11 @@
     "url": "https://github.com/nightscout/nightscout-connect/issues"
   },
   "homepage": "https://github.com/nightscout/nightscout-connect",
-  "author": "Ben West",
+  "author": {
+    "name": "Ben West",
+    "email": "bewest@medicaldatanetworks.com",
+    "url": "https://github.com/bewest"
+  },
   "license": "AGPL-3.0-or-later",
   "devDependencies": {
     "moment": "^2.29.4",
