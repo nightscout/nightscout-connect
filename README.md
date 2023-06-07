@@ -23,7 +23,6 @@ point.
   * [x] hello world
   * [x] glucose
   * [ ] treatments, profiles, devicestatus
-  * [ ] sync data to Nightscout
 * [ ] Tidepool
 * [ ] Tandem
 
