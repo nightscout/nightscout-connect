@@ -16,6 +16,10 @@
     "type": "git",
     "url": "https://github.com/nightscout/nightscout-connect.git"
   },
+  "bugs": {
+    "url": "https://github.com/nightscout/nightscout-connect/issues"
+  },
+  "homepage": "https://github.com/nightscout/nightscout-connect",
   "author": "Ben West",
   "license": "AGPL-3.0-or-later",
   "devDependencies": {
