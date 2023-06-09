@@ -78,9 +78,7 @@ function main (argv) {
   var actor = interpret(things);
   actor.start( );
   actor.send({type: 'START'});
-  setTimeout(( ) => {
-  actor.send({type: 'STOP'});
-  }, 60000 * 1);
+  // setTimeout(( ) => { actor.send({type: 'STOP'}); }, 60000 * 1);
 
 }
 
