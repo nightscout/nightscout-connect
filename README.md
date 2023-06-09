@@ -6,7 +6,7 @@ and allows managing http library and injecting dependencies from a single
 point.
 
 
-## Work in progress
+## Roadmap
 
 * Nightscout
   * [x] hello world
@@ -18,10 +18,10 @@ point.
   * [x] fetch data
   * [x] translate data (likely needs work)
 * [x] LibreLinkUp (needs testing)
-* [ ] Diasend
+* [ ] Diasend - obsolete
 * [x] Medtronic
   * [x] hello world
-  * [x] glucose
+  * [x] glucose, stub devicestatus
   * [ ] treatments, profiles, devicestatus
 * [ ] Tidepool
 * [ ] Tandem
@@ -113,8 +113,6 @@ For folks connected to many patients, you can provide the patient ID by setting
 the `CONNECT_LINK_UP_PATIENT_ID` variable.
 
 ### Minimed Carelink
-> Note: Experimental, only glucose for patient role is supported in
-> proof of concept work.
 
 To synchronize from Medtronic Minimed Carelink, set the following
 environment variables.
@@ -124,7 +122,7 @@ environment variables.
 * `CONNECT_CARELINK_REGION` Either `eu` to set `CONNECT_CARELINK_SERVER` to
   `carelink.minimed.eu` or `us` to use `carelink.minimed.com`.
 
-For folk using the new Many to Many feature, please provide the username of the
+For folks using the new Many to Many feature, please provide the username of the
 patient to follow using `CONNECT_CARELINK_PATIENT_USERNAME` variable.
 
 ### `NEXT work in progress DRIVER`
