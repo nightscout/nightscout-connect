@@ -45,6 +45,70 @@ point.
 * Environment variable prefix `CONNECT_`:
   * `CONNECT_SOURCE` - The name for the source of one of the supported inputs.  one of `nightscout`, `dexcomshare`, etc...
 
+
+## How to use
+
+For now there are two "output" devices available, internal Nightscout as a
+plugin, or external Nightscout as a sidecar from the commnandline.
+We will consider additional output targets.
+
+### From Nightscout
+
+This is a Nightscout plugin.  Enable the plugin by including the word `connect`
+in the `ENABLE` list.  Select a data source by providing `CONNECT_SOURCE`.
+Make sure to provide the credentials needed by your data source.  If they are
+missing, the plugin will produce a helpful error through Nightscout indicating
+which variables to set.
+
+### From command line
+
+Running from the commandline for development purposes, as a sidecar, for
+example, use `npm install` and consider `npm ln` to place the
+`nightscout-connect` shell script in your path. Once in your path, it will offer `--help` for all subcommands.
+
+
+```
+$ nightscout-connect --help
+```
+```
+nightscout-connect <cmd> [args]
+
+Commands:
+  nightscout-connect capture <dir> [hint]  Runs as a background server forever.
+  nightscout-connect forever [hint]        Runs as a background server forever.
+  nightscout-connect demo                  a quick demo using timers instead of
+                                           I/O
+  nightscout-connect completion            generate completion script
+
+Options:
+  --version  Show version number                                       [boolean]
+  --help     Show help                                                 [boolean]
+```
+
+`nightscout-connect` will read the environment variables the same way as Nightscout
+extended variables using the prefix `CONNECT_`.
+Development use typically consists of commands like this:
+
+```
+../cgm-remote-monitor/node_modules/.bin/env-cmd -f ../minimed-envs/subject.env nightscout-connect capture logs
+
+```
+Where `subject.env` typically consists of something like this:
+
+
+```
+CONNECT_API_SECRET=626753d7f62f000078e8f6e2
+CONNECT_NIGHTSCOUT_ENDPOINT=http://localhost:3030
+CONNECT_SOURCE=minimedcarelink
+CONNECT_CARELINK_USERNAME=your username
+CONNECT_CARELINK_PASSWORD=your password
+CONNECT_CARELINK_REGION=your region
+CONNECT_COUNTRY_CODE=your country code
+```
+
+
+## Input Data Sources
+
 ### Nightscout
 
 > Work in progress
