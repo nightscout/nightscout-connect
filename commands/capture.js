@@ -39,13 +39,22 @@ function main (argv) {
   // 
 
   var endpoint = { name: 'nightscout', url: argv.nightscoutEndpoint, apiSecret: argv.apiSecret };
-  console.log("CONFIGURED OUTPUT", output);
   var input = { kind: argv.source, url: argv.sourceEndpoint, apiSecret: argv.sourceApiSecret || '' };
   console.log("CONFIGURED INPUT", input);
 
 
   // var things = sidecarLoop(input, output, { dir: argv.dir });
-  var output = outputs(endpoint)(endpoint, axios);
+  var output_config = endpoint;
+  if (argv.output == 'filesystem') {
+    output_config = {
+      name: 'filesystem'
+    , directory: argv['fs-prefix']
+    , label: argv['fs-label']
+    };
+  }
+
+  console.log("CONFIGURED OUTPUT", output_config);
+  var output = outputs(output_config)(output_config, axios);
   var capture = { dir: argv.dir };
   var make = builder({ output, capture });
 
@@ -87,5 +96,8 @@ module.exports.command = 'capture <dir> [hint]';
 module.exports.describe = 'Runs as a background server forever.'
 module.exports.builder = (yargs) => yargs
   .option('source', { alias: 'hint', describe: 'source input', default: 'default', choices: Object.keys(sources.kinds)})
+  .option('output', { describe: "output type", default: "nightscout", choices: [ 'nightscout', 'filesystem' ] })
+  .option('fs-prefix', { describe: "filesystem prefix for output", default: 'logs/' })
+  .option('fs-label', { describe: "filesystem label for output" })
   .option('dir', { describe: 'output directory', default: './har' })
 module.exports.handler = main;
