@@ -189,7 +189,13 @@ environment variables.
 For folks using the new Many to Many feature, please provide the username of the
 patient to follow using `CONNECT_CARELINK_PATIENT_USERNAME` variable.
 
-### `NEXT work in progress DRIVER`
+### Tidepool
+
+* [ ] TODO
+
+### Tandem
+
+* [ ] TODO
 
 ## History
 
