@@ -83,7 +83,7 @@ function main (argv) {
 
 
 
-  console.log(things);
+  //console.log(things);
   var actor = interpret(things);
   actor.start( );
   actor.send({type: 'START'});

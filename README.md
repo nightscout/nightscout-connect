@@ -151,13 +151,15 @@ To synchronize from Glooko use the following variables.
 * `CONNECT_SOURCE=glooko`
 * `CONNECT_GLOOKO_EMAIL=`
 * `CONNECT_GLOOKO_PASSWORD=`
+* `CONNECT_GLOOKO_TIMEZONE_OFFSET=0`
 
 By default, `CONNECT_GLOOKO_SERVER` is set to `api.glooko.com` because the
 default value for `CONNECT_GLOOKO_ENV` is `default`.
 * `CONNECT_GLOOKO_ENV` is the word `default` by defalt.  Other values are
-  `development`, `production`, for `api.glooko.work`, and
+  `eu`, `development`, `production`, for `api.glooko.work`, and
   `externalapi.glooko.com`, respectively.
-* `CONNECT_GLOOKO_SERVER` the hostname server to use - `api.glooko.com` by `default`.
+* `CONNECT_GLOOKO_SERVER` the hostname server to use - `api.glooko.com` by `default`, or `eu.api.glooko.com` for EU users.
+* `CONNECT_GLOOKO_TIMEZONE_OFFSET` defines the time zone offset you are at from the UTC time zone, in hours
 
 If both, `CONNECT_GLOOKO_SERVER` and `CONNECT_GLOOKO_ENV` are set, only
 `CONNECT_GLOOKO_SERVER` will be used.
