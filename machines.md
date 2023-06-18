@@ -248,3 +248,51 @@ The source transform function will take the batch of data returned from the
 `DATA_RECEIVED` event and must return a Nightscout compatible batch, consisting
 of `{ entries: [ ], treatments: [ ], profile: [ ], devicestatus: [ ] }`.
 
+### Sources
+
+`lib/sources/` contains modules specific to each vendor.
+
+#### Configuring
+
+The cli entry point uses yargs to parse environment variables.  The
+mechanism is identical to the way Nightscout parses environment variables
+for extended settings, using the prefix `CONNECT_`.  In order for the
+entrypoints to configure a source, the module must export a function 
+that returns `{ ...impl, generate_driver (builder)  }`.  `generate_driver` is a
+function that takes a builder to register cycle, fetch and session
+parameters for this driver.
+
+The source driver should also expose a property or static function
+`validate`, which should take extendedd arguments via yargs `argv` or
+Nightscout's extended settings for the `connect` plugin and return a list
+of errors and validated configuration parameters.
+
+#### Instantiating
+
+Calling the source creation function takes a configuration and
+returns an implementation of the vendor bound to the configuation.
+This usually consists of a mixture of promises doing I/O, and
+utilities to help transform data or interpret a gap or query
+parameters.
+
+Two promises are required for a.) resolving the configured credentials to
+authenticated information, b.) resolving authenticated information to a
+session.
+
+The implementation of `generate_driver` should call `builder.support_session` mapping
+these promises to `authenticate` and `authorize` properties of the
+configuration parameter.  The entry point will call `generate_driver`.
+
+In addition, to authentication and authorization, a third promise that takes a
+session and resolves to a batch of collected data to be transformed is
+required.  The implementation of `generate_driver` should call
+`builder.register_loop` mapping this promise to the `frame.impl` property of
+the configuration object in order to map inject it as the behavior for the
+fetch machine.
+
+For test/future development purposes, the entire bound implementation is
+exported via `impl` object as well.  These promises are mixed with a variety of
+utilities to align the schedule against previous readings.  Fortunately, the
+structure of `impl` is independent from the requirements of builder  and
+xstate, and can be reorganized according to project and author needs.
+
