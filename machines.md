@@ -206,6 +206,7 @@ source module.
     // owned by the poller, called NightscoutEntries.
     builder.register_loop('NightscoutEntries', {
       tracker: tracker_for,
+      // defines options for the fetch machine
       frame: {
         // use the promise dataFromSesssion and map it to the fetch machine's
         // main dataFromSesssion/dataFetchService.
@@ -218,6 +219,8 @@ source module.
         // transformService during the Transforming state.
         transform: impl.transformGlucose,
         backoff: {
+          // defines WAIT_BEFORE_RETRY_DELAY exponential delay behavior
+          // in fetch machine
           // wait ten seconds before retrying to get data
           // then increase on exponential basis
           interval_ms: 10000
@@ -231,6 +234,8 @@ source module.
       // end of the cycle.  lib/machines/cycle maps this to EXPECTED_DATA_INTERVAL_DELAY.
       expected_data_interval_ms: 5 * 60 * 1000,
       backoff: {
+        // defines exponential back off on frames_missing, in MAIN_CYCLE_DELAY
+        // during Ready state on a cycle.
         // when frame exhausts its retries and the cycle still fails, how long
         // to wait before the next cycle.
         // wait 2.5 minutes * 2^attempt
