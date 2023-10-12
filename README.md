@@ -18,13 +18,13 @@ point.
   * [x] fetch data
   * [x] translate data (likely needs work)
 * [x] LibreLinkUp (needs testing)
-* [x] Medtronic
+* [x] ~~Medtronic~~
   * [x] hello world
   * [x] glucose, stub devicestatus
   * [ ] treatments, profiles, devicestatus
 * [ ] Tidepool
 * [ ] Tandem
-* [ ] Diasend - obsolete
+* [ ] ~~Diasend - obsolete~~
 
 ## Lower priority
 * Better UI integration, diagnostics, test connection, fix errors, manage plugin...
