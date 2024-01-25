@@ -178,6 +178,9 @@ Other available values for `CONNECT_LINK_UP_REGION`:
 For folks connected to many patients, you can provide the patient ID by setting
 the `CONNECT_LINK_UP_PATIENT_ID` variable.
 
+Optionally, you can override the default 5-minute refresh interval by providing
+`CONNECT_LINK_UP_INTERVAL` as an integer representing minutes.
+
 ### Minimed Carelink
 
 To synchronize from Medtronic Minimed Carelink, set the following
