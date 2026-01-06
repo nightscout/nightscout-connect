@@ -46,23 +46,35 @@ function main (argv) {
   console.log(things);
   var actor = interpret(things);
   
-  // Handle errors to prevent crashes
-  actor.onError((error) => {
-    console.error("STATE MACHINE ERROR:", error);
-    // Don't exit - let it continue running
+  // Subscribe to state transitions to catch errors
+  actor.onTransition((state) => {
+    if (state.event && state.event.type && state.event.type.includes('ERROR')) {
+      console.error("STATE MACHINE ERROR:", state.event);
+    }
   });
   
   // Handle graceful shutdown on SIGINT/SIGTERM
   process.on('SIGINT', () => {
-    console.log("Received SIGINT, stopping gracefully...");
+    console.log("\nReceived SIGINT, stopping gracefully...");
     actor.send({type: 'STOP'});
     setTimeout(() => process.exit(0), 1000);
   });
   
   process.on('SIGTERM', () => {
-    console.log("Received SIGTERM, stopping gracefully...");
+    console.log("\nReceived SIGTERM, stopping gracefully...");
     actor.send({type: 'STOP'});
     setTimeout(() => process.exit(0), 1000);
+  });
+  
+  // Catch unhandled errors
+  process.on('uncaughtException', (error) => {
+    console.error("UNCAUGHT EXCEPTION:", error);
+    console.error("Process will continue running...");
+  });
+  
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error("UNHANDLED REJECTION at:", promise, "reason:", reason);
+    console.error("Process will continue running...");
   });
   
   actor.start( );
