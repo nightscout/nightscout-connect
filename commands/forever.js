@@ -45,12 +45,30 @@ function main (argv) {
   var things = sidecarLoop(input, output);
   console.log(things);
   var actor = interpret(things);
+  
+  // Handle errors to prevent crashes
+  actor.onError((error) => {
+    console.error("STATE MACHINE ERROR:", error);
+    // Don't exit - let it continue running
+  });
+  
+  // Handle graceful shutdown on SIGINT/SIGTERM
+  process.on('SIGINT', () => {
+    console.log("Received SIGINT, stopping gracefully...");
+    actor.send({type: 'STOP'});
+    setTimeout(() => process.exit(0), 1000);
+  });
+  
+  process.on('SIGTERM', () => {
+    console.log("Received SIGTERM, stopping gracefully...");
+    actor.send({type: 'STOP'});
+    setTimeout(() => process.exit(0), 1000);
+  });
+  
   actor.start( );
   actor.send({type: 'START'});
-  setTimeout(( ) => {
-  actor.send({type: 'STOP'});
-  }, 60000 * 5);
-
+  
+  console.log("nightscout-connect running continuously. Press Ctrl+C to stop.");
 }
 
 
