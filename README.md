@@ -143,6 +143,21 @@ Optional, `CONNECT_SHARE_REGION` and `CONNECT_SHARE_SERVER` do the same thing, o
   Selecting `ous` here sets `CONNECT_SHARE_SERVER` to `shareous1.dexcom.com`.
 * `CONNECT_SHARE_SERVER=` set the server domain to use.
 
+#### Legacy Bridge Plugin Compatibility
+
+For backward compatibility with the old bridge plugin, the following environment
+variables are also supported and will map to the new variable names:
+
+* `BRIDGE_USER_NAME` → `CONNECT_SHARE_ACCOUNT_NAME`
+* `BRIDGE_PASSWORD` → `CONNECT_SHARE_PASSWORD`
+* `BRIDGE_SERVER` → `CONNECT_SHARE_REGION`
+  * Blank/empty (old default) → `us` (share2.dexcom.com)
+  * `EU` → `ous` (shareous1.dexcom.com)
+  * `us` → `us` (share2.dexcom.com)
+  * Custom domain → Uses `CONNECT_SHARE_SERVER` directly
+
+**Important:** If a `CONNECT_*` variable is set, the corresponding `BRIDGE_*` variable is completely ignored. Only unset `CONNECT_*` variables will fall back to `BRIDGE_*` values.
+
 
 ### Glooko
 
@@ -226,5 +241,32 @@ encourage migration away from `share2nightscout-bridge`:
 * Safe community: There are now randomization behaviors to prevent tragedy of
   the commons from occurring.  These features help spread the load to avoid
   accidentally overwhelming vendor servers.
+
+## Migration from share2nightscout-bridge
+
+If you're migrating from the old `share2nightscout-bridge` plugin, you have two options:
+
+### Option 1: Use Legacy Environment Variables (Easiest)
+
+Keep your existing `BRIDGE_*` environment variables - they will work automatically:
+```bash
+ENABLE=connect
+BRIDGE_USER_NAME=your_dexcom_username
+BRIDGE_PASSWORD=your_dexcom_password
+BRIDGE_SERVER=         # Blank for US (old default), or set to EU for European servers
+```
+
+### Option 2: Update to New Variable Names (Recommended)
+
+Update your environment variables to the new naming convention:
+```bash
+ENABLE=connect
+CONNECT_SOURCE=dexcomshare
+CONNECT_SHARE_ACCOUNT_NAME=your_dexcom_username
+CONNECT_SHARE_PASSWORD=your_dexcom_password
+CONNECT_SHARE_REGION=us
+```
+
+Both approaches work identically. The new `CONNECT_*` variables take precedence if both are set.
 
 

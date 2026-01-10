@@ -4,6 +4,7 @@ var argv = require('yargs')
   .scriptName('nightscout-connect')
   .usage('$0 <cmd> [args]')
   .env("CONNECT")
+  .env("BRIDGE")  // Support legacy BRIDGE_ environment variables
   .commandDir('../commands')
   .command(require('../demo'))
   .help( )

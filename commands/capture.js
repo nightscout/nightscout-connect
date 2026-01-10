@@ -6,6 +6,7 @@ var builder = require('../lib/builder');
 var sources = require('../lib/sources');
 var outputs = require('../lib/outputs');
 var debug = require('../lib/debug');
+var applyBridgeCompatibility = require('../lib/compat');
 
 function sidecarLoop (input, output, capture) {
   
@@ -64,7 +65,11 @@ function main (argv) {
   // select an available input source implementation based on env
   // variables/config
   var driver = sources(spec);
-  var validated = driver.validate(argv);
+  
+  // Apply compatibility layer for old bridge plugin environment variables
+  var connectConfig = applyBridgeCompatibility(argv);
+  
+  var validated = driver.validate(connectConfig);
   if (validated.errors) {
     validated.errors.forEach((item) => {
       console.log(item);

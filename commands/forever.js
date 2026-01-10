@@ -5,6 +5,7 @@ var axios = require('axios');
 var builder = require('../lib/builder');
 var sources = require('../lib/sources');
 var outputs = require('../lib/outputs');
+var applyBridgeCompatibility = require('../lib/compat');
 
 function sidecarLoop (input, output) {
   
@@ -39,7 +40,11 @@ function main (argv) {
   // 
   var output = { name: 'nightscout', url: argv.nightscoutEndpoint, apiSecret: argv.apiSecret };
   console.log("CONFIGURED OUTPUT", output);
-  var input = { kind: argv.source, url: argv.sourceEndpoint, apiSecret: argv.sourceApiSecret };
+  
+  // Apply compatibility layer for old bridge plugin environment variables
+  var connectInput = applyBridgeCompatibility(argv);
+  
+  var input = { kind: argv.source, url: argv.sourceEndpoint, apiSecret: argv.sourceApiSecret, ...connectInput };
   console.log("CONFIGURED INPUT", input);
 
   var things = sidecarLoop(input, output);

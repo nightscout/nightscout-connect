@@ -12,6 +12,7 @@ var builder = require('./lib/builder');
 var sources = require('./lib/sources');
 var outputs = require('./lib/outputs');
 var debug = require('./lib/debug');
+var applyBridgeCompatibility = require('./lib/compat');
 
 
 function internalLoop (input, output) {
@@ -47,7 +48,11 @@ function manage (env, ctx) {
   // select an available input source implementation based on env
   // variables/config
   var driver = sources(spec);
-  var validated = driver.validate(env.extendedSettings.connect);
+  
+  // Apply compatibility layer for old bridge plugin environment variables
+  var connectConfig = applyBridgeCompatibility(env.extendedSettings.connect);
+  
+  var validated = driver.validate(connectConfig);
   if (validated.errors) {
       ctx.bootErrors.push(...validated.errors);
   }
