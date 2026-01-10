@@ -212,18 +212,31 @@ If both, `CONNECT_GLOOKO_SERVER` and `CONNECT_GLOOKO_ENV` are set, only
 `CONNECT_GLOOKO_SERVER` will be used.
 
 ### Libre Link Up
-To synchronize from Libre Link Up use the following variables.
+
+To synchronize from Libre Link Up use the following variables:
+
+**Required:**
 * `CONNECT_SOURCE=linkup`
-* `CONNECT_LINK_UP_USERNAME=`
-* `CONNECT_LINK_UP_PASSWORD=`
+* `CONNECT_LINK_UP_USERNAME=` - Your LibreLinkUp email address
+* `CONNECT_LINK_UP_PASSWORD=` - Your LibreLinkUp password
 
-By default, `CONNECT_LINK_UP_SERVER` is set to `api-eu.libreview.io` because the
-default value for `CONNECT_LINK_UP_REGION` is `EU`.
-Other available values for `CONNECT_LINK_UP_REGION`:
-  * `US`, `EU`, `DE`, `FR`, `JP`, `AP`, `AU`, `AE`
+**Optional:**
+* `CONNECT_LINK_UP_REGION=` - Your region (default: `EU`)
+  * Available values: `AE`, `AP`, `AU`, `CA`, `DE`, `EU`, `EU2`, `FR`, `JP`, `US`, `LA`, `RU`, `CN`
+  * This automatically sets the correct server (e.g., `EU` → `api-eu.libreview.io`)
+* `CONNECT_LINK_UP_PATIENT_ID=` - Specific Patient ID (required if you have multiple connections)
+* `CONNECT_LINK_UP_VERSION=` - LibreLink Up app version (default: `4.16.0`)
+* `CONNECT_LINK_UP_SERVER=` - Override automatic server selection (advanced use only)
 
-For folks connected to many patients, you can provide the patient ID by setting
-the `CONNECT_LINK_UP_PATIENT_ID` variable.
+**Example Configuration:**
+```bash
+CONNECT_SOURCE=linkup
+CONNECT_LINK_UP_USERNAME=your.email@example.com
+CONNECT_LINK_UP_PASSWORD=yourpassword
+CONNECT_LINK_UP_REGION=EU
+```
+
+**Note:** The implementation includes Cloudflare bypass features and follows the latest LibreLinkUp API standards from the reference implementation at https://github.com/timoschlueter/nightscout-librelink-up (MIT License)
 
 ### Minimed Carelink
 
@@ -257,7 +270,7 @@ dependencies.
 Now there are more:
 * https://github.com/burnedikt/diasend-nightscout-bridge
 * https://github.com/jpollock/glooko2nightscout-bridge
-* https://github.com/timoschlueter/nightscout-librelink-up
+* https://github.com/timoschlueter/nightscout-librelink-up (MIT License)
 * https://github.com/jwoglom/tconnectsync
 * https://github.com/skalahonza/TidepoolToNightScoutSync
 
