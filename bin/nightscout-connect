@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+// Load environment variables from .env file if it exists
+require('dotenv').config();
+
 var argv = require('yargs')
   .scriptName('nightscout-connect')
   .usage('$0 <cmd> [args]')

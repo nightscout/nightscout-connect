@@ -33,22 +33,21 @@ function sidecarLoop (input, output) {
 }
 
 function main (argv) {
-  console.log("STARTING", argv);
-  // selected output
-  // argv.nightscoutEndpoint;
-  // argv.apiSecret;
-  // 
-  var output = { name: 'nightscout', url: argv.nightscoutEndpoint, apiSecret: argv.apiSecret };
-  console.log("CONFIGURED OUTPUT", output);
+  // Fallback to environment variables if yargs didn't map them
+  const nightscoutEndpoint = argv.nightscoutEndpoint || argv['nightscout-endpoint'] || process.env.CONNECT_NIGHTSCOUT_ENDPOINT;
+  const apiSecret = argv.apiSecret || argv['api-secret'] || process.env.CONNECT_API_SECRET;
+  const source = argv.source || process.env.CONNECT_SOURCE;
+  const sourceEndpoint = argv.sourceEndpoint || argv['source-endpoint'] || process.env.CONNECT_SOURCE_ENDPOINT;
+  const sourceApiSecret = argv.sourceApiSecret || argv['source-api-secret'] || process.env.CONNECT_SOURCE_API_SECRET;
+  
+  var output = { name: 'nightscout', url: nightscoutEndpoint, apiSecret: apiSecret };
   
   // Apply compatibility layer for old bridge plugin environment variables
   var connectInput = applyBridgeCompatibility(argv);
-  
-  var input = { kind: argv.source, url: argv.sourceEndpoint, apiSecret: argv.sourceApiSecret, ...connectInput };
-  console.log("CONFIGURED INPUT", input);
+
+  var input = { kind: source, url: sourceEndpoint, apiSecret: sourceApiSecret, ...connectInput };
 
   var things = sidecarLoop(input, output);
-  console.log(things);
   var actor = interpret(things);
   
   // Subscribe to state transitions to catch errors
@@ -91,5 +90,10 @@ function main (argv) {
 
 module.exports.command = 'forever [hint]';
 module.exports.describe = 'Runs as a background server forever.'
-module.exports.builder = (yargs) => yargs.option('source', { alias: 'hint', describe: 'source input', default: 'default', choices: Object.keys(sources.kinds)})
+module.exports.builder = (yargs) => yargs
+  .option('source', { alias: 'hint', describe: 'source input', choices: Object.keys(sources.kinds) })
+  .option('nightscoutEndpoint', { describe: 'Nightscout endpoint URL', type: 'string' })
+  .option('apiSecret', { describe: 'Nightscout API secret', type: 'string' })
+  .option('sourceEndpoint', { describe: 'Source endpoint URL', type: 'string' })
+  .option('sourceApiSecret', { describe: 'Source API secret', type: 'string' })
 module.exports.handler = main;
