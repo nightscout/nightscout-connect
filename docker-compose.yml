@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  nightscout-connect:
+    build: .
+    container_name: nightscout-connect
+    restart: unless-stopped
+    environment:
+      # Source configuration
+      CONNECT_SOURCE: nightscout
+      CONNECT_SOURCE_ENDPOINT: ${CONNECT_SOURCE_ENDPOINT}
+      CONNECT_SOURCE_API_SECRET: ${CONNECT_SOURCE_API_SECRET}
+      
+      # Target configuration
+      CONNECT_NIGHTSCOUT_ENDPOINT: ${CONNECT_NIGHTSCOUT_ENDPOINT}
+      CONNECT_API_SECRET: ${CONNECT_API_SECRET}
+      
+      # Optional: Enable debug logging
+      CONNECT_DEBUG: ${CONNECT_DEBUG:-false}
+    
+    # Use environment file for secrets
+    env_file:
+      - .env
+    
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M

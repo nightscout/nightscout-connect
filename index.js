@@ -11,6 +11,8 @@ var axios = require('axios');
 var builder = require('./lib/builder');
 var sources = require('./lib/sources');
 var outputs = require('./lib/outputs');
+var debug = require('./lib/debug');
+var applyBridgeCompatibility = require('./lib/compat');
 
 
 function internalLoop (input, output) {
@@ -35,7 +37,7 @@ function manage (env, ctx) {
 
   var internal = { name: 'internal' };
   var output = outputs(internal)(internal, ctx);
-  console.log("CONFIGURED OUTPUT", output);
+  debug("CONFIGURED OUTPUT", output);
 
   // var things = internalLoop(input, output);
   // everything known for output
@@ -46,12 +48,16 @@ function manage (env, ctx) {
   // select an available input source implementation based on env
   // variables/config
   var driver = sources(spec);
-  var validated = driver.validate(env.extendedSettings.connect);
+  
+  // Apply compatibility layer for old bridge plugin environment variables
+  var connectConfig = applyBridgeCompatibility(env.extendedSettings.connect);
+  
+  var validated = driver.validate(connectConfig);
   if (validated.errors) {
       ctx.bootErrors.push(...validated.errors);
   }
 
-  console.log("INPUT PARAMS", spec, validated.config);
+  debug("INPUT PARAMS", spec, validated.config);
 
   if (!validated.ok) {
     console.log("Invalid, disabling nightscout-connect", validated);
@@ -72,7 +78,7 @@ function manage (env, ctx) {
   }
 
 
-  ctx.bus.on('tick', console.log.bind(console, 'DEBUG nightscout-connect'));
+  // ctx.bus.on('tick', console.log.bind(console, 'DEBUG nightscout-connect'));
   ctx.bus.once('data-processed', handle.run);
   ctx.bus.once('tearDown', handle.stop);
   // console.log(things);
