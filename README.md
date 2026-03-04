@@ -52,6 +52,21 @@ For now there are two "output" devices available, internal Nightscout as a
 plugin, or external Nightscout as a sidecar from the commnandline.
 We will consider additional output targets.
 
+### Log Level
+
+By default the plugin logs nothing. Set `LOG_LEVEL=debug` to enable verbose logging (tick events, data-loaded snapshots):
+
+```
+LOG_LEVEL=debug
+```
+
+In Docker Compose, add it only to the Nightscout service so it doesn't affect other containers:
+
+```yaml
+environment:
+  LOG_LEVEL: "debug"
+```
+
 ### From Nightscout
 
 This is a Nightscout plugin.  Enable the plugin by including the word `connect`
@@ -91,6 +106,7 @@ Development use typically consists of commands like this:
 
 ```
 ../cgm-remote-monitor/node_modules/.bin/env-cmd -f ../minimed-envs/subject.env nightscout-connect capture logs
+..\cgm-remote-monitor\node_modules\.bin\env-cmd -f .\subject.env nightscout-connect capture logs
 
 ```
 Where `subject.env` typically consists of something like this:
@@ -100,10 +116,8 @@ Where `subject.env` typically consists of something like this:
 CONNECT_API_SECRET=626753d7f62f000078e8f6e2
 CONNECT_NIGHTSCOUT_ENDPOINT=http://localhost:3030
 CONNECT_SOURCE=minimedcarelink
-CONNECT_CARELINK_USERNAME=your username
-CONNECT_CARELINK_PASSWORD=your password
-CONNECT_CARELINK_REGION=your region
-CONNECT_COUNTRY_CODE=your country code
+CONNECT_CARELINK_REGION=eu
+MONGO_CONNECTION=mongodb://localhost:27017/nightscout
 ```
 
 
@@ -183,16 +197,43 @@ Optionally, you can override the default 5-minute refresh interval by providing
 
 ### Minimed Carelink
 
-To synchronize from Medtronic Minimed Carelink, set the following
-environment variables.
-* `CONNECT_SOURCE=minimedcarelink`
-* `CONNECT_CARELINK_USERNAME`
-* `CONNECT_CARELINK_PASSWORD`
-* `CONNECT_CARELINK_REGION` Either `eu` to set `CONNECT_CARELINK_SERVER` to
-  `carelink.minimed.eu` or `us` to use `carelink.minimed.com`.
+Medtronic CareLink now uses an OAuth2 PKCE flow — username and password authentication is no longer supported. Authentication requires a one-time login step to obtain OAuth tokens, which are then stored in MongoDB and refreshed automatically.
 
-For folks using the new Many to Many feature, please provide the username of the
-patient to follow using `CONNECT_CARELINK_PATIENT_USERNAME` variable.
+#### Setup
+
+**Required environment variables:**
+* `CONNECT_SOURCE=minimedcarelink`
+* `MONGO_CONNECTION` — your MongoDB URI (same as Nightscout's `MONGO_CONNECTION`, no duplication needed)
+* `CONNECT_CARELINK_REGION` — `eu` (default) or `us`
+
+`CONNECT_CARELINK_USERNAME` and `CONNECT_CARELINK_PASSWORD` are no longer used and can be removed from your config.
+
+#### One-time login
+
+Before starting the poller for the first time, run:
+
+```bash
+nightscout-connect login             # EU by default
+nightscout-connect login --region us
+```
+
+This will open the CareLink login page in your browser. After logging in:
+
+1. The page will **fail to load** — this is expected. CareLink redirects to a custom app scheme (`com.medtronic.carepartner://`) that the browser cannot handle
+2. Open DevTools (`F12`) → Network tab → find the blocked request to `/authorize/resume`
+3. Click it → Response Headers → copy the `Location` value (starts with `com.medtronic.carepartner:/sso?code=...`)
+4. Paste it back into the terminal when prompted
+
+Tokens are saved to MongoDB and the poller can now start. Token refresh is handled automatically — you only need to re-run `login` if the refresh token expires (~30 days).
+
+#### Nightscout admin UI (optional)
+
+If you are running [cgm-remote-monitor](https://github.com/nightscout/cgm-remote-monitor), the login flow is also available directly from the Nightscout `/admin` page under **CareLink Authentication** — no CLI access needed.
+
+#### Many to Many
+
+For folks using the Many to Many feature, provide the username of the patient to follow:
+* `CONNECT_CARELINK_PATIENT_USERNAME`
 
 ### Tidepool
 

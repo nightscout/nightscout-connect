@@ -48,13 +48,15 @@ function manage (env, ctx) {
   var driver = sources(spec);
   var validated = driver.validate(env.extendedSettings.connect);
   if (validated.errors) {
-      ctx.bootErrors.push(...validated.errors);
+    validated.errors.forEach(function (item) {
+      console.log("[nightscout-connect]", item.desc || item);
+    });
   }
 
   console.log("INPUT PARAMS", spec, validated.config);
 
   if (!validated.ok) {
-    console.log("Invalid, disabling nightscout-connect", validated);
+    console.log("Invalid, disabling nightscout-connect (use admin page or CLI to configure)");
     return;
   }
   var impl = driver(validated.config, axios);
@@ -72,7 +74,7 @@ function manage (env, ctx) {
   }
 
 
-  ctx.bus.on('tick', console.log.bind(console, 'DEBUG nightscout-connect'));
+  if (process.env.LOG_LEVEL === 'debug') ctx.bus.on('tick', console.log.bind(console, 'DEBUG nightscout-connect'));
   ctx.bus.once('data-processed', handle.run);
   ctx.bus.once('tearDown', handle.stop);
   // console.log(things);

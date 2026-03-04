@@ -27,7 +27,7 @@
   },
   "license": "AGPL-3.0-or-later",
   "devDependencies": {
-    "axios-har-tracker": "^0.5.1",
+    "axios-har-tracker": "^0.8.0",
     "moment": "^2.29.4"
   },
   "peerDependencies": {
@@ -41,5 +41,8 @@
     "uid": "^2.0.2",
     "xstate": "^4.37.1",
     "yargs": "^17.7.1"
+  },
+  "optionalDependencies": {
+    "mongodb": ">=4.0.0"
   }
 }

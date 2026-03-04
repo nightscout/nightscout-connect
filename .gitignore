@@ -1,2 +1,6 @@
 .*.sw[po]
 node_modules/
+logindata.json
+subject.env
+output.log
+logs/
