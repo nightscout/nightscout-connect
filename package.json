@@ -1,6 +1,6 @@
 {
   "name": "nightscout-connect",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "Connect common cloud platforms to Nightscout.",
   "main": "index.js",
   "directories": {
@@ -10,7 +10,7 @@
     "nightscout-connect": "bin/nightscout-connect"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test"
   },
   "repository": {
     "type": "git",
