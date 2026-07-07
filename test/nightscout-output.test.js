@@ -29,5 +29,5 @@ test('Nightscout output requires an API secret', () => {
 test('Nightscout output tolerates batches with omitted collections', async () => {
   const output = nightscoutOutput({ url: 'https://example.test', apiSecret: 'secret' }, fakeAxios());
 
-  assert.equal(await output({}), null);
+  assert.deepEqual(await output({}), {});
 });
