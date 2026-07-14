@@ -441,3 +441,89 @@ test('Glooko transform tolerates missing readings', () => {
 
   assert.deepEqual(source.transformData({}), { entries: [], treatments: [] });
 });
+
+test('Glooko incremental fetch uses the treatment bookmark when glucose is newer', async () => {
+  const calls = [];
+  const treatmentBookmark = new Date(Date.now() - (3 * 60 * 60 * 1000));
+  const entryBookmark = new Date(Date.now() - (5 * 60 * 1000));
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'test-password',
+    baseURL: 'https://api.glooko.com'
+  }, fakeAxios((call) => {
+    calls.push(call);
+    if (call.path.startsWith('/api/v2/pumps/scheduled_basals')) {
+      return Promise.resolve({ data: { scheduledBasals: [] } });
+    }
+    if (call.path.startsWith('/api/v2/pumps/normal_boluses')) {
+      return Promise.resolve({ data: { normalBoluses: [] } });
+    }
+    if (call.path.startsWith('/api/v2/cgm/readings')) {
+      return Promise.resolve({ data: { readings: [] } });
+    }
+    throw new Error('unexpected path ' + call.path);
+  }));
+
+  await source.dataFromSesssion({
+    cookies: '_logbook-web_session=test-session',
+    user: { userLogin: { glookoCode: 'test-patient' } }
+  }, {
+    entries: entryBookmark,
+    treatments: treatmentBookmark
+  });
+
+  assert.equal(calls.length, 3);
+  for (const call of calls) {
+    const isTreatmentRequest = call.path.startsWith('/api/v2/pumps/');
+    const expectedBookmark = isTreatmentRequest ? treatmentBookmark : entryBookmark;
+    assert.equal(call.options.params.lastUpdatedAt, expectedBookmark.toISOString());
+    if (isTreatmentRequest) {
+      assert.ok(call.options.params.limit >= 35, `expected a treatment-sized window, got ${call.options.params.limit}`);
+    } else {
+      assert.ok(call.options.params.limit <= 2, `expected an entry-sized window, got ${call.options.params.limit}`);
+    }
+  }
+});
+
+test('Glooko authentication and fetch logs omit session and patient identifiers', async () => {
+  const originalLog = console.log;
+  const logged = [];
+  console.log = (...args) => logged.push(args.map((arg) => {
+    if (typeof arg === 'string') return arg;
+    try { return JSON.stringify(arg); } catch (_) { return String(arg); }
+  }).join(' '));
+
+  try {
+    const source = glookoSource({
+      glookoEmail: 'user@example.com',
+      glookoPassword: 'test-password',
+      baseURL: 'https://api.glooko.com'
+    }, fakeAxios((call) => {
+      if (call.method === 'post') {
+        return Promise.resolve({
+          headers: { 'set-cookie': ['_logbook-web_session=private-cookie; path=/'] },
+          data: { userLogin: { glookoCode: 'private-patient-code' } }
+        });
+      }
+      if (call.path.startsWith('/api/v2/pumps/scheduled_basals')) {
+        return Promise.resolve({ data: { scheduledBasals: [] } });
+      }
+      if (call.path.startsWith('/api/v2/pumps/normal_boluses')) {
+        return Promise.resolve({ data: { normalBoluses: [] } });
+      }
+      if (call.path.startsWith('/api/v2/cgm/readings')) {
+        return Promise.resolve({ data: { readings: [] } });
+      }
+      throw new Error('unexpected path ' + call.path);
+    }));
+
+    const session = await source.authFromCredentials();
+    await source.dataFromSesssion(session, null);
+  } finally {
+    console.log = originalLog;
+  }
+
+  const output = logged.join('\n');
+  assert.doesNotMatch(output, /private-cookie/);
+  assert.doesNotMatch(output, /private-patient-code/);
+});

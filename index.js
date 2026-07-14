@@ -51,10 +51,13 @@ function manage (env, ctx) {
       ctx.bootErrors.push(...validated.errors);
   }
 
-  console.log("INPUT PARAMS", spec, validated.config);
+  console.log("INPUT PARAMS", spec, {
+    kind: validated.config.kind,
+    baseURL: validated.config.baseURL
+  });
 
   if (!validated.ok) {
-    console.log("Invalid, disabling nightscout-connect", validated);
+    console.log("Invalid, disabling nightscout-connect", validated.errors);
     return;
   }
   var impl = driver(validated.config, axios);
