@@ -431,6 +431,178 @@ test('Glooko transform applies configured timezone offset to fake-UTC readings',
   assert.equal(result.entries[0].dateString, '2025-10-09T06:53:20.000Z');
 });
 
+test('Glooko validation carries configured IANA timezone', () => {
+  const result = glookoSource.validate({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoTimezone: 'Europe/Prague'
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.config.glookoTimezone, 'Europe/Prague');
+});
+
+test('Glooko transform applies DST-aware timezone offset per timestamp', () => {
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoTimezone: 'Europe/Prague',
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios(() => Promise.resolve({ data: {} })));
+
+  const result = source.transformData({
+    readings: [
+      { timestamp: '2026-01-15T08:53:20.000Z', value: 11000 },
+      { timestamp: '2026-07-15T08:53:20.000Z', value: 12000 }
+    ]
+  });
+
+  assert.equal(result.entries[0].dateString, '2026-01-15T07:53:20.000Z');
+  assert.equal(result.entries[1].dateString, '2026-07-15T06:53:20.000Z');
+});
+
+test('Glooko v3 graph transform applies DST-aware timezone to fake-UTC timestamps', () => {
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoTimezone: 'Europe/Prague',
+    glookoUseV3Graph: true,
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios(() => Promise.resolve({ data: {} })));
+
+  const result = source.transformData({
+    readings: [],
+    v3Graph: {
+      series: {
+        cgmNormal: [
+          {
+            x: Date.parse('2026-07-15T08:53:20.000Z') / 1000,
+            timestamp: '2026-07-15T08:53:20.000Z',
+            value: 12000,
+            calculated: false
+          },
+          {
+            x: Date.parse('2026-01-15T08:53:20.000Z') / 1000,
+            value: 11000,
+            calculated: false
+          }
+        ]
+      }
+    }
+  });
+
+  assert.equal(result.entries[0].dateString, '2026-01-15T07:53:20.000Z');
+  assert.equal(result.entries[1].dateString, '2026-07-15T06:53:20.000Z');
+});
+
+test('Glooko IANA timezone takes precedence over fixed timezone offset', () => {
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoTimezone: 'Europe/Prague',
+    glookoTimezoneOffset: -3600000,
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios(() => Promise.resolve({ data: {} })));
+
+  const result = source.transformData({
+    readings: [
+      { timestamp: '2026-07-15T08:53:20.000Z', value: 12000 }
+    ]
+  });
+
+  assert.equal(result.entries[0].dateString, '2026-07-15T06:53:20.000Z');
+});
+
+test('Glooko validation rejects invalid IANA timezone', () => {
+  const result = glookoSource.validate({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoTimezone: 'Not/A_Timezone'
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.config.kind, 'disabled');
+  assert.ok(result.errors.some((error) => /timezone/i.test(error.desc)));
+});
+
+test('Glooko timezone conversion handles DST transition boundaries', () => {
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoTimezone: 'Europe/Prague',
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios(() => Promise.resolve({ data: {} })));
+
+  const result = source.transformData({
+    readings: [
+      { timestamp: '2026-03-29T01:59:59.000Z', value: 11000 },
+      { timestamp: '2026-03-29T03:00:00.000Z', value: 12000 }
+    ]
+  });
+
+  assert.equal(result.entries[0].dateString, '2026-03-29T00:59:59.000Z');
+  assert.equal(result.entries[1].dateString, '2026-03-29T01:00:00.000Z');
+});
+
+test('Glooko pump treatments apply DST-aware timezone per timestamp', () => {
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoTimezone: 'Europe/Prague',
+    glookoTimezoneOffset: 0,
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios(() => Promise.resolve({ data: {} })));
+
+  const result = source.transformData({
+    readings: [],
+    normalBoluses: [
+      {
+        pumpTimestamp: '2026-01-15T08:53:20.000Z',
+        insulinDelivered: 1.0,
+        carbsInput: 10
+      },
+      {
+        pumpTimestamp: '2026-07-15T08:53:20.000Z',
+        insulinDelivered: 1.5,
+        carbsInput: 15
+      }
+    ],
+    scheduledBasals: [
+      {
+        pumpTimestamp: '2026-07-15T09:00:00.000Z',
+        rate: 1.0,
+        duration: 1800
+      }
+    ]
+  });
+
+  const boluses = result.treatments.filter((item) => item.eventType === 'Meal Bolus');
+  const basals = result.treatments.filter((item) => item.eventType === 'Temp Basal');
+
+  assert.equal(boluses[0].eventTime, '2026-01-15T07:53:20.000Z');
+  assert.equal(boluses[1].eventTime, '2026-07-15T06:53:20.000Z');
+  assert.equal(basals[0].created_at, '2026-07-15T07:00:00.000Z');
+});
+
+test('Glooko pump treatments preserve configured fixed timezone offset', () => {
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoTimezoneOffset: -7200000,
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios(() => Promise.resolve({ data: {} })));
+
+  const result = source.transformData({
+    readings: [],
+    normalBoluses: [{
+      pumpTimestamp: '2026-07-15T08:53:20.000Z',
+      insulinDelivered: 1
+    }]
+  });
+
+  assert.equal(result.treatments[0].eventTime, '2026-07-15T06:53:20.000Z');
+});
+
 test('Glooko transform tolerates missing readings', () => {
   const source = glookoSource({
     glookoEmail: 'user@example.com',
