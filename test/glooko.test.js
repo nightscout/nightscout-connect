@@ -362,6 +362,12 @@ test('Glooko data fetch adds v3 graph fallback when v2 CGM readings are empty', 
     if (call.path.startsWith('/api/v2/cgm/readings')) {
       return Promise.resolve({ data: { readings: [] } });
     }
+    if (call.path.startsWith('/api/v2/pumps/events')) {
+      return Promise.resolve({ data: { events: [] } });
+    }
+    if (call.path.startsWith('/api/v2/pumps/alarms')) {
+      return Promise.resolve({ data: { alarms: [] } });
+    }
     if (call.path.startsWith('/api/v3/graph/data')) {
       assert.match(call.path, /series\[\]=cgmNormal/);
       assert.doesNotMatch(call.path, /series%5B%5D/);
@@ -376,7 +382,17 @@ test('Glooko data fetch adds v3 graph fallback when v2 CGM readings are empty', 
   }, { entries: new Date('2025-10-09T08:48:20.000Z') });
 
   assert.deepEqual(batch.v3Graph, { series: { cgmNormal: [{ x: 1760000000, value: 12345 }] } });
-  assert.equal(calls.length, 4);
+  // v2 basals + boluses + cgm readings, the pump events/alarms this driver
+  // adds, the wide-window basal fetch, and the v3 graph fallback
+  assert.deepEqual(calls.map((c) => c.path.split('?')[0]).sort(), [
+    '/api/v2/cgm/readings',
+    '/api/v2/pumps/alarms',
+    '/api/v2/pumps/events',
+    '/api/v2/pumps/normal_boluses',
+    '/api/v2/pumps/scheduled_basals',
+    '/api/v2/pumps/scheduled_basals',
+    '/api/v3/graph/data'
+  ]);
 });
 
 test('Glooko data fetch can resolve patient code from v3 session profile before graph fallback', async () => {

@@ -18,8 +18,11 @@ function sidecarLoop (input, output) {
   // select an available input source implementation based on env
   // variables/config
   var driver = sources(input);
-  console.log("INPUT PARAMS", input);
-  var impl = driver(input, axios);
+  var _v = driver.validate ? driver.validate(input) : null;
+  if (_v && !_v.ok) console.log("VALIDATION ERRORS", _v.errors.map(function(e){return e.desc;}));
+  var _opts = (_v && _v.ok) ? _v.config : input;
+  console.log("DRIVER OPTS baseURL:", _opts.baseURL, "authMode:", _opts.glookoAuthMode);
+  var impl = driver(_opts, axios);
   // var impl = testImpl.fakeFrame({ }, axios);
 
   impl.generate_driver(make);
@@ -39,8 +42,10 @@ function main (argv) {
   // 
   var output = { name: 'nightscout', url: argv.nightscoutEndpoint, apiSecret: argv.apiSecret };
   console.log("CONFIGURED OUTPUT", output);
-  var input = { kind: argv.source, url: argv.sourceEndpoint, apiSecret: argv.sourceApiSecret };
-  console.log("CONFIGURED INPUT", input);
+  var input = Object.assign({}, argv, { kind: argv.source, url: argv.sourceEndpoint, apiSecret: argv.sourceApiSecret });
+  // argv now carries every CONNECT_* env var, credentials included, so log the
+  // shape rather than the values.
+  console.log("CONFIGURED INPUT", { kind: input.kind, url: input.url, keys: Object.keys(input).length });
 
   var things = sidecarLoop(input, output);
   console.log(things);
@@ -49,7 +54,7 @@ function main (argv) {
   actor.send({type: 'START'});
   setTimeout(( ) => {
   actor.send({type: 'STOP'});
-  }, 60000 * 5);
+  }, 60000 * 60 * 24);
 
 }
 
