@@ -59,6 +59,16 @@ Current coverage includes Dexcom Share auth/session shapes, Nightscout
 source/output token flows, LibreLinkUp regional and timestamp behavior, and
 Glooko regional/device identity plus v2 CGM reading transforms.
 
+Dexcom logging regressions cover valid/invalid startup, authentication, session
+creation and glucose-fetch errors, plus two complete actor lifecycles per case.
+The shared state machines emit fixed event labels instead of context/event dumps.
+Dexcom failures retain their rejected error and log only the operation and numeric
+HTTP status; credentials, account/session identifiers and remote error bodies or
+messages are omitted. The startup tick-payload debug listener is removed.
+These tests use owned fixtures, not a live Dexcom account. They do not establish
+that other source drivers or CLI capture output are free of sensitive data.
+
+
 
 ## How to use
 

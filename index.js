@@ -51,10 +51,10 @@ function manage (env, ctx) {
       ctx.bootErrors.push(...validated.errors);
   }
 
-  console.log("INPUT PARAMS", spec, validated.config);
+  console.log("nightscout-connect input configured");
 
   if (!validated.ok) {
-    console.log("Invalid, disabling nightscout-connect", validated);
+    console.log("Invalid configuration, disabling nightscout-connect");
     return;
   }
   var impl = driver(validated.config, axios);
@@ -72,7 +72,6 @@ function manage (env, ctx) {
   }
 
 
-  ctx.bus.on('tick', console.log.bind(console, 'DEBUG nightscout-connect'));
   ctx.bus.once('data-processed', handle.run);
   ctx.bus.once('tearDown', handle.stop);
   // console.log(things);
