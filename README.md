@@ -71,6 +71,9 @@ or raw errors. Regression fixtures exercise authentication and consent, patient
 and carepartner sessions, Guardian and pump fetches, refresh, transformation and
 request failures using the real Axios client with an owned adapter. Returned
 authentication/data values and propagated errors remain available to callers.
+The internal Nightscout output also emits fixed labels instead of stored batches
+or glucose/profile bookmarks. An output regression verifies records and
+bookmarks remain available without logging those payloads.
 These tests use owned fixtures, not live vendor accounts. They do not establish
 that other source drivers or CLI capture output are free of sensitive data.
 
