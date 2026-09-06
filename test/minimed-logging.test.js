@@ -102,7 +102,7 @@ test('MiniMed payload transformation does not log glucose or pump data', t => {
   const verify = capture(t);
   const {source} = fixture();
   const timestamp = '2026-09-01T12:00:00Z';
-  const data = {medicalDeviceFamily: 'MINIMED', private: secret, sgs: [{datetime: timestamp, sg: 123}], markers: [], lastSG: {sg: 123}, lastSGTrend: 'FLAT', sMedicalDeviceTime: timestamp, medicalDeviceBatteryLevelPercent: 80, reservoirRemainingUnits: 100, activeInsulin: {amount: 1.2}};
+  const data = {lastMedicalDeviceDataUpdateServerTime: Date.parse(timestamp), medicalDeviceFamily: 'MINIMED', private: secret, sgs: [{datetime: timestamp, sg: 123}], markers: [], lastSG: {sg: 123}, lastSGTrend: 'FLAT', sMedicalDeviceTime: timestamp, medicalDeviceBatteryLevelPercent: 80, reservoirRemainingUnits: 100, activeInsulin: {amount: 1.2}};
   const output = source.transformPayload(data, {});
   assert.equal(output.entries[0].sgv, 123);
   assert.equal(output.devicestatus[0].pump.reservoir, 100);
