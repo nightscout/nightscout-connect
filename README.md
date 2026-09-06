@@ -65,7 +65,13 @@ The shared state machines emit fixed event labels instead of context/event dumps
 Dexcom failures retain their rejected error and log only the operation and numeric
 HTTP status; credentials, account/session identifiers and remote error bodies or
 messages are omitted. The startup tick-payload debug listener is removed.
-These tests use owned fixtures, not a live Dexcom account. They do not establish
+MiniMed CareLink logging emits fixed operation labels instead of credentials,
+SSO forms, cookies, bearer tokens, profile/patient records, glucose/pump payloads
+or raw errors. Regression fixtures exercise authentication and consent, patient
+and carepartner sessions, Guardian and pump fetches, refresh, transformation and
+request failures using the real Axios client with an owned adapter. Returned
+authentication/data values and propagated errors remain available to callers.
+These tests use owned fixtures, not live vendor accounts. They do not establish
 that other source drivers or CLI capture output are free of sensitive data.
 
 
