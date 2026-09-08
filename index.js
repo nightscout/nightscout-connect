@@ -33,16 +33,6 @@ function manage (env, ctx) {
 
   spec.kind = env.extendedSettings.connect.source;
 
-  var internal = { name: 'internal' };
-  var output = outputs(internal)(internal, ctx);
-  console.log("CONFIGURED OUTPUT", output);
-
-  // var things = internalLoop(input, output);
-  // everything known for output
-  // output must be passed into builder, before generate_driver is
-  // called.
-  var make = builder({ output });
-
   // select an available input source implementation based on env
   // variables/config
   var driver = sources(spec);
@@ -57,27 +47,39 @@ function manage (env, ctx) {
     console.log("Invalid configuration, disabling nightscout-connect");
     return;
   }
-  var impl = driver(validated.config, axios);
-  impl.generate_driver(make);
-  var things = make( );
-
-  function handle ( ) { return actor; };
+  var internal = { name: 'internal' };
+  var output = outputs(internal)(internal, ctx);
+  var actor;
+  var stopped = false;
+  function handle () { return actor; }
   handle.run = () => {
-    actor.send({type: 'START'});
+    if (!stopped) actor.send({type: 'START'});
     return Promise.resolve(handle);
-  }
+  };
   handle.stop = () => {
-    actor.stop( );
+    if (!stopped) {
+      stopped = true;
+      ctx.bus.removeListener('data-processed', handle.run);
+      ctx.bus.removeListener('tearDown', handle.stop);
+      ctx.bus.removeListener('teardown', handle.stop);
+      try { if (actor) actor.stop(); }
+      finally { output.close(); }
+    }
     return Promise.resolve(handle);
+  };
+  try {
+    var make = builder({output});
+    var impl = driver(validated.config, axios);
+    impl.generate_driver(make);
+    actor = interpret(make());
+    ctx.bus.once('data-processed', handle.run);
+    ctx.bus.once('tearDown', handle.stop);
+    ctx.bus.once('teardown', handle.stop);
+    actor.start();
+  } catch (error) {
+    handle.stop();
+    throw error;
   }
-
-
-  ctx.bus.once('data-processed', handle.run);
-  ctx.bus.once('tearDown', handle.stop);
-  // console.log(things);
-  var actor = interpret(things);
-  actor.start( );
-  // actor.send({type: 'START'});
 
   return handle;
 }
