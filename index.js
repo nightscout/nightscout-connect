@@ -11,23 +11,28 @@ var axios = require('axios');
 var builder = require('./lib/builder');
 var sources = require('./lib/sources');
 var outputs = require('./lib/outputs');
+var createLogger = require('./lib/logging');
 
 
 function internalLoop (input, output) {
 }
 
 function manage (env, ctx) {
+  var settings = env.extendedSettings.connect || {};
+  var debug = Object.prototype.hasOwnProperty.call(settings, 'debug')
+    ? settings.debug : env.debug && env.debug.logging;
+  var log = createLogger(debug);
 
   // source
   // output
   // env.extendedSettings.connect.source
   var spec = { kind: 'disabled' };
   if (!env.extendedSettings.connect) {
-    console.log("Skipping disabled nightscout-connect");
+    log.debug('Skipping disabled connector');
     return;
   }
   if (!env.extendedSettings.connect.source) {
-    console.log("Skipping disabled nightscout-connect, no source driver spec");
+    log.debug('Skipping disabled connector, no source driver');
     return;
   }
 
@@ -41,13 +46,13 @@ function manage (env, ctx) {
       ctx.bootErrors.push(...validated.errors);
   }
 
-  console.log("nightscout-connect input configured");
+  log.debug('Input configured');
 
   if (!validated.ok) {
-    console.log("Invalid configuration, disabling nightscout-connect");
+    log.error('Invalid configuration, disabling connector');
     return;
   }
-  var internal = { name: 'internal' };
+  var internal = { name: 'internal', logger: log };
   var output = outputs(internal)(internal, ctx);
   var actor;
   var stopped = false;
@@ -68,8 +73,8 @@ function manage (env, ctx) {
     return Promise.resolve(handle);
   };
   try {
-    var make = builder({output});
-    var impl = driver(validated.config, axios);
+    var make = builder({output, logger: log});
+    var impl = driver(validated.config, axios, log);
     impl.generate_driver(make);
     actor = interpret(make());
     ctx.bus.once('data-processed', handle.run);
