@@ -11,37 +11,41 @@ var axios = require('axios');
 var builder = require('./lib/builder');
 var sources = require('./lib/sources');
 var outputs = require('./lib/outputs');
+var createLogger = require('./lib/logging');
 
 
 function internalLoop (input, output) {
 }
 
 function manage (env, ctx) {
+  var connect = env.extendedSettings.connect;
+  var log = createLogger(connect && connect.debug !== undefined
+    ? connect.debug : env.debug && env.debug.logging);
 
   // source
   // output
   // env.extendedSettings.connect.source
   var spec = { kind: 'disabled' };
   if (!env.extendedSettings.connect) {
-    console.log("Skipping disabled nightscout-connect");
+    log.debug('Skipping disabled connector');
     return;
   }
   if (!env.extendedSettings.connect.source) {
-    console.log("Skipping disabled nightscout-connect, no source driver spec");
+    log.debug('Skipping connector without a source');
     return;
   }
 
   spec.kind = env.extendedSettings.connect.source;
 
-  var internal = { name: 'internal' };
+  var internal = { name: 'internal', logger: log };
   var output = outputs(internal)(internal, ctx);
-  console.log("CONFIGURED OUTPUT", output);
+  log.debug('Internal output configured');
 
   // var things = internalLoop(input, output);
   // everything known for output
   // output must be passed into builder, before generate_driver is
   // called.
-  var make = builder({ output });
+  var make = builder({ output, logger: log });
 
   // select an available input source implementation based on env
   // variables/config
@@ -51,13 +55,13 @@ function manage (env, ctx) {
       ctx.bootErrors.push(...validated.errors);
   }
 
-  console.log("INPUT PARAMS", spec, validated.config);
+  log.debug('Input configured');
 
   if (!validated.ok) {
-    console.log("Invalid, disabling nightscout-connect", validated);
+    log.error('Invalid configuration, disabling connector');
     return;
   }
-  var impl = driver(validated.config, axios);
+  var impl = driver(validated.config, axios, log);
   impl.generate_driver(make);
   var things = make( );
 
@@ -72,7 +76,6 @@ function manage (env, ctx) {
   }
 
 
-  ctx.bus.on('tick', console.log.bind(console, 'DEBUG nightscout-connect'));
   ctx.bus.once('data-processed', handle.run);
   ctx.bus.once('tearDown', handle.stop);
   // console.log(things);
