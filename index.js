@@ -17,6 +17,22 @@ var createLogger = require('./lib/logging');
 function internalLoop (input, output) {
 }
 
+// A pool of connectors started together will otherwise reach the vendor
+// together. Both windows default to 0, which is what every deployment does
+// today; a hoster running many accounts behind one egress address sets them.
+//
+//   CONNECT_START_JITTER_MS     spread over the first cycle after START
+//   CONNECT_INTERVAL_JITTER_MS  spread over the poll interval, on the path
+//                               where the source has declined to align - the
+//                               aligned path carries the driver's own spread
+//
+// Nightscout's extended settings coerce a numeric value for us, but a
+// connector can also be constructed directly, so the parse is defensive.
+function jitter_window (value) {
+  var ms = Number(value);
+  return Number.isFinite(ms) && ms > 0 ? ms : 0;
+}
+
 function manage (env, ctx) {
   var settings = env.extendedSettings.connect || {};
   var debug = Object.prototype.hasOwnProperty.call(settings, 'debug')
@@ -73,7 +89,12 @@ function manage (env, ctx) {
     return Promise.resolve(handle);
   };
   try {
-    var make = builder({output, logger: log});
+    var make = builder({
+      output,
+      logger: log,
+      start_jitter_ms: jitter_window(settings.startJitterMs),
+      interval_jitter_ms: jitter_window(settings.intervalJitterMs)
+    });
     var impl = driver(validated.config, axios, log);
     impl.generate_driver(make);
     actor = interpret(make());
