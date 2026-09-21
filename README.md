@@ -44,6 +44,7 @@ point.
 * `ENABLE=connect` include the keyword `connect` in the `ENABLE` list.
 * Environment variable prefix `CONNECT_`:
   * `CONNECT_SOURCE` - The name for the source of one of the supported inputs.  one of `nightscout`, `dexcomshare`, etc...
+  * `CONNECT_DEBUG` - Set to `true`, `1`, or `yes` to enable detailed debug logging. Default is disabled.
 
 ## Testing
 
@@ -80,6 +81,27 @@ Running from the commandline for development purposes, as a sidecar, for
 example, use `npm install` and consider `npm ln` to place the
 `nightscout-connect` shell script in your path. Once in your path, it will offer `--help` for all subcommands.
 
+#### Using a .env file (Recommended)
+
+The easiest way to run nightscout-connect is with a `.env` file in the project root:
+
+1. Create a `.env` file with your configuration:
+```bash
+CONNECT_API_SECRET=your_api_secret
+CONNECT_NIGHTSCOUT_ENDPOINT=https://your-nightscout-site.com
+CONNECT_SOURCE=nightscout
+CONNECT_SOURCE_ENDPOINT=https://source-nightscout.com
+CONNECT_SOURCE_API_SECRET=source_api_secret
+```
+
+2. Run the forever command:
+```bash
+node bin/nightscout-connect forever
+```
+
+The `.env` file will be automatically loaded (using dotenv) and environment variables will be available to the application.
+
+#### Command-line help
 When using the external Nightscout output, provide:
 
 * `CONNECT_NIGHTSCOUT_ENDPOINT=<destination Nightscout URL>`
@@ -106,6 +128,16 @@ Options:
 
 `nightscout-connect` will read the environment variables the same way as Nightscout
 extended variables using the prefix `CONNECT_`.
+
+#### Alternative: Using env-cmd
+
+For development use with multiple environment files, you can use `env-cmd`:
+
+```bash
+npm install -g env-cmd
+env-cmd -f path/to/your.env nightscout-connect forever
+```
+
 Development use typically consists of commands like this:
 
 ```
@@ -168,6 +200,20 @@ Optional, `CONNECT_SHARE_REGION` and `CONNECT_SHARE_SERVER` do the same thing, o
   Selecting `ous` here sets `CONNECT_SHARE_SERVER` to `shareous1.dexcom.com`.
 * `CONNECT_SHARE_SERVER=` set the server domain to use.
 
+#### Legacy Bridge Plugin Compatibility
+
+For backward compatibility with the old bridge plugin, the following environment
+variables are also supported and will map to the new variable names:
+
+* `BRIDGE_USER_NAME` → `CONNECT_SHARE_ACCOUNT_NAME`
+* `BRIDGE_PASSWORD` → `CONNECT_SHARE_PASSWORD`
+* `BRIDGE_SERVER` → `CONNECT_SHARE_REGION`
+  * Blank/empty (old default) → `us` (share2.dexcom.com)
+  * `EU` → `ous` (shareous1.dexcom.com)
+  * `us` → `us` (share2.dexcom.com)
+  * Custom domain → Uses `CONNECT_SHARE_SERVER` directly
+
+**Important:** If a `CONNECT_*` variable is set, the corresponding `BRIDGE_*` variable is completely ignored. Only unset `CONNECT_*` variables will fall back to `BRIDGE_*` values.
 Dexcom Share supports both older authentication responses that return a bare
 account ID and newer G7-era responses that return `{ accountId: "..." }`.
 Authentication and non-HTTP failures are surfaced to the state machine rather
@@ -238,11 +284,21 @@ The same test plan describes the explicitly opted-in multi-account runner for
 full REST and plugin writes to a disposable local Nightscout database.
 
 ### Libre Link Up
-To synchronize from Libre Link Up use the following variables.
-* `CONNECT_SOURCE=linkup`
-* `CONNECT_LINK_UP_USERNAME=`
-* `CONNECT_LINK_UP_PASSWORD=`
 
+To synchronize from Libre Link Up use the following variables:
+
+**Required:**
+* `CONNECT_SOURCE=linkup`
+* `CONNECT_LINK_UP_USERNAME=` - Your LibreLinkUp email address
+* `CONNECT_LINK_UP_PASSWORD=` - Your LibreLinkUp password
+
+**Optional:**
+* `CONNECT_LINK_UP_REGION=` - Your region (default: `EU`)
+  * Available values: `AE`, `AP`, `AU`, `CA`, `DE`, `EU`, `EU2`, `FR`, `JP`, `US`, `LA`, `RU`, `CN`
+  * This automatically sets the correct server (e.g., `EU` → `api-eu.libreview.io`)
+* `CONNECT_LINK_UP_PATIENT_ID=` - Specific Patient ID (required if you have multiple connections)
+* `CONNECT_LINK_UP_VERSION=` - LibreLink Up app version (default: `4.16.0`)
+* `CONNECT_LINK_UP_SERVER=` - Override automatic server selection (advanced use only)
 By default, `CONNECT_LINK_UP_SERVER` is set to `api-eu.libreview.io` because the
 default value for `CONNECT_LINK_UP_REGION` is `EU`.
 Other available values for `CONNECT_LINK_UP_REGION`:
@@ -252,8 +308,15 @@ Other available values for `CONNECT_LINK_UP_REGION`:
 * `CONNECT_LINK_UP_VERSION` and `CONNECT_LINK_UP_PRODUCT` may be used when
   LibreLinkUp requires a newer client version or product identifier.
 
-For folks connected to many patients, you can provide the patient ID by setting
-the `CONNECT_LINK_UP_PATIENT_ID` variable.
+**Example Configuration:**
+```bash
+CONNECT_SOURCE=linkup
+CONNECT_LINK_UP_USERNAME=your.email@example.com
+CONNECT_LINK_UP_PASSWORD=yourpassword
+CONNECT_LINK_UP_REGION=EU
+```
+
+**Note:** The implementation includes Cloudflare bypass features and follows the latest LibreLinkUp API standards from the reference implementation at https://github.com/timoschlueter/nightscout-librelink-up (MIT License)
 
 Optionally, you can override the default 5-minute refresh interval by providing
 `CONNECT_LINK_UP_INTERVAL` as an integer representing minutes.
@@ -293,7 +356,7 @@ dependencies.
 Now there are more:
 * https://github.com/burnedikt/diasend-nightscout-bridge
 * https://github.com/jpollock/glooko2nightscout-bridge
-* https://github.com/timoschlueter/nightscout-librelink-up
+* https://github.com/timoschlueter/nightscout-librelink-up (MIT License)
 * https://github.com/jwoglom/tconnectsync
 * https://github.com/skalahonza/TidepoolToNightScoutSync
 
@@ -308,3 +371,30 @@ encourage migration away from `share2nightscout-bridge`:
 * Safe community: There are now randomization behaviors to prevent tragedy of
   the commons from occurring.  These features help spread the load to avoid
   accidentally overwhelming vendor servers.
+
+## Migration from share2nightscout-bridge
+
+If you're migrating from the old `share2nightscout-bridge` plugin, you have two options:
+
+### Option 1: Use Legacy Environment Variables (Easiest)
+
+Keep your existing `BRIDGE_*` environment variables - they will work automatically:
+```bash
+ENABLE=connect
+BRIDGE_USER_NAME=your_dexcom_username
+BRIDGE_PASSWORD=your_dexcom_password
+BRIDGE_SERVER=         # Blank for US (old default), or set to EU for European servers
+```
+
+### Option 2: Update to New Variable Names (Recommended)
+
+Update your environment variables to the new naming convention:
+```bash
+ENABLE=connect
+CONNECT_SOURCE=dexcomshare
+CONNECT_SHARE_ACCOUNT_NAME=your_dexcom_username
+CONNECT_SHARE_PASSWORD=your_dexcom_password
+CONNECT_SHARE_REGION=us
+```
+
+Both approaches work identically. The new `CONNECT_*` variables take precedence if both are set.

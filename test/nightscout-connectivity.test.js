@@ -38,6 +38,11 @@ async function withServer (handler, run) {
         body
       };
       requests.push(record);
+      // These fixtures emulate a legacy source without API v3.
+      if (record.path === '/api/v3/version') {
+        sendJson(res, 404, { status: 404 });
+        return;
+      }
       await handler(record, res);
     } catch (err) {
       if (!res.headersSent) {
@@ -80,6 +85,7 @@ test('Nightscout source recovers from blocked verifyauth by creating a reader to
 
     assert.equal(await source.authFromCredentials(), 'reader-token');
     assert.deepEqual(requests.map((req) => req.path), [
+      '/api/v3/version',
       '/api/v1/verifyauth',
       '/api/v2/authorization/subjects'
     ]);
@@ -205,6 +211,7 @@ test('Nightscout source keeps public-readable sites tokenless', async () => {
 
     await source.dataFromSesssion(session, null);
     assert.deepEqual(requests.map((req) => req.path), [
+      '/api/v3/version',
       '/api/v1/verifyauth',
       '/api/v1/entries.json',
       '/api/v1/treatments.json',

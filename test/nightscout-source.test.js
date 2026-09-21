@@ -43,6 +43,9 @@ test('Nightscout source falls back to token creation after unreadable verifyauth
     apiSecret: 'secret'
   }, fakeAxios((call) => {
     calls.push(call);
+    if (call.path === '/api/v3/version') {
+      return Promise.reject(Object.assign(new Error('not found'), { response: { status: 404 } }));
+    }
     if (call.path === '/api/v1/verifyauth') {
       return Promise.reject(new Error('unauthorized'));
     }
@@ -54,6 +57,7 @@ test('Nightscout source falls back to token creation after unreadable verifyauth
 
   assert.equal(await source.authFromCredentials(), 'reader-token');
   assert.deepEqual(calls.map((call) => call.path), [
+    '/api/v3/version',
     '/api/v1/verifyauth',
     '/api/v2/authorization/subjects'
   ]);
