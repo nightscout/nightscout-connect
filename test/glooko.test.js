@@ -38,6 +38,7 @@ test('Glooko validation supports default, EU, and explicit servers', () => {
   };
 
   assert.equal(glookoSource.validate(common).config.baseURL, 'https://api.glooko.com');
+  assert.equal(glookoSource.validate({ ...common, glookoEnv: 'us' }).config.baseURL, 'https://api.glooko.com');
   assert.equal(glookoSource.validate({ ...common, glookoEnv: 'eu' }).config.baseURL, 'https://eu.api.glooko.com');
   const deFr = glookoSource.validate({ ...common, glookoEnv: 'de-fr' });
   assert.equal(deFr.ok, true);
@@ -83,6 +84,12 @@ test('Glooko validation keeps unknown auth modes on safe api default', () => {
   assert.equal(result.config.glookoAuthMode, 'api');
 });
 
+test('Glooko validation rejects unknown regions without a server override', () => {
+  const common = { glookoEmail: 'user@example.com', glookoPassword: 'secret' };
+  assert.equal(glookoSource.validate({ ...common, glookoEnv: 'unknown' }).ok, false);
+  assert.equal(glookoSource.validate({ ...common, glookoEnv: 'unknown', glookoServer: 'regional.api.glooko.com' }).ok, true);
+});
+
 test('Glooko auth sends configurable Android device identity', async () => {
   const source = glookoSource({
     glookoEmail: 'user@example.com',
@@ -119,6 +126,48 @@ test('Glooko API auth fails clearly when two-factor is required', async () => {
   })));
 
   await assert.rejects(() => source.authFromCredentials(), /two-factor/);
+});
+
+test('Glooko v3 JSON auth resolves the patient code from session users', async () => {
+  const calls = [];
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoAuthMode: 'v3',
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios((call) => {
+    calls.push(call);
+    if (call.method === 'post') {
+      assert.equal(call.path, '/api/v3/users/sign_in');
+      assert.deepEqual(call.body, { user: { email: 'user@example.com', password: 'secret' } });
+      return Promise.resolve({
+        headers: { 'set-cookie': ['other=ignored; path=/', '_logbook-web_session=session-123; path=/'] },
+        data: { success: true, two_fa_required: false }
+      });
+    }
+    assert.equal(call.path, '/api/v3/session/users');
+    assert.match(call.options.headers.Cookie, /_logbook-web_session=session-123/);
+    return Promise.resolve({ data: { currentUser: { glookoCode: 'patient-123' } } });
+  }));
+
+  const auth = await source.authFromCredentials();
+  assert.equal(auth.cookies, '_logbook-web_session=session-123');
+  const session = await source.sessionFromAuth(auth);
+  assert.equal(session.userProfile.currentUser.glookoCode, 'patient-123');
+  assert.deepEqual(calls.map((call) => call.path), [
+    '/api/v3/users/sign_in', '/api/v3/session/users'
+  ]);
+});
+
+test('Glooko v3 JSON auth rejects a success response without a session cookie', async () => {
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoAuthMode: 'v3',
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios(() => Promise.resolve({ headers: {}, data: { success: false } })));
+
+  await assert.rejects(() => source.authFromCredentials(), /session cookie/);
 });
 
 test('Glooko auth supports explicit regional web origin overrides', async () => {
@@ -243,7 +292,7 @@ test('Glooko web auth fails clearly when CSRF token is missing', async () => {
   await assert.rejects(() => source.authFromCredentials(), /authenticity_token/);
 });
 
-test('Glooko auto auth mode falls back to web login on 422', async () => {
+test('Glooko auto auth retains web fallback when both JSON login routes reject 422', async () => {
   const calls = [];
   const err = new Error('InvalidAuthenticityToken');
   err.response = { status: 422, data: 'The change you wanted was rejected' };
@@ -255,7 +304,7 @@ test('Glooko auto auth mode falls back to web login on 422', async () => {
     glookoWebOrigin: 'https://eu.my.glooko.com'
   }, fakeAxios((call) => {
     calls.push(call);
-    if (call.method === 'post' && call.path === '/api/v2/users/sign_in') {
+    if (call.method === 'post' && ['/api/v2/users/sign_in', '/api/v3/users/sign_in'].includes(call.path)) {
       return Promise.reject(err);
     }
     if (call.method === 'get' && call.path === '/users/sign_in?locale=en-GB') {
@@ -276,6 +325,7 @@ test('Glooko auto auth mode falls back to web login on 422', async () => {
   assert.equal((await source.authFromCredentials()).cookies, '_logbook-web_session=session-123; path=/');
   assert.deepEqual(calls.map((call) => `${call.method} ${call.path}`), [
     'post /api/v2/users/sign_in',
+    'post /api/v3/users/sign_in',
     'get /users/sign_in?locale=en-GB',
     'post /users/sign_in?id=login_form'
   ]);
@@ -414,6 +464,38 @@ test('Glooko data fetch adds v3 graph fallback when v2 CGM readings are empty', 
     '/api/v2/pumps/scheduled_basals',
     '/api/v3/graph/data'
   ]);
+});
+
+test('Glooko falls back to v3 when non-empty v2 readings cannot become CGM entries', async () => {
+  const calls = [];
+  const source = glookoSource({
+    glookoUseV3Graph: true,
+    baseURL: 'https://api.glooko.com'
+  }, fakeAxios((call) => {
+    calls.push(call.path.split('?')[0]);
+    if (call.path.startsWith('/api/v2/pumps/scheduled_basals')) return Promise.resolve({ data: { scheduledBasals: [] } });
+    if (call.path.startsWith('/api/v2/pumps/normal_boluses')) return Promise.resolve({ data: { normalBoluses: [] } });
+    if (call.path.startsWith('/api/v2/cgm/readings')) {
+      return Promise.resolve({ data: { readings: [
+        { display_time: '2025-10-09T08:53:20.000Z', bg_value: 123 }
+      ] } });
+    }
+    if (call.path.startsWith('/api/v2/pumps/events')) return Promise.resolve({ data: { events: [] } });
+    if (call.path.startsWith('/api/v2/pumps/alarms')) return Promise.resolve({ data: { alarms: [] } });
+    if (call.path.startsWith('/api/v3/graph/data')) {
+      return Promise.resolve({ data: { series: { cgmNormal: [{ x: 1760000000, value: 12345 }] } } });
+    }
+    throw new Error('unexpected path ' + call.path);
+  }));
+
+  const batch = await source.dataFromSesssion({
+    cookies: '_logbook-web_session=session-123',
+    user: { userLogin: { glookoCode: 'patient-123' } }
+  }, null);
+
+  assert.equal(batch.readings.length, 1);
+  assert.ok(calls.includes('/api/v3/graph/data'));
+  assert.equal(source.transformData(batch).entries.length, 1);
 });
 
 test('Glooko data fetch can resolve patient code from v3 session profile before graph fallback', async () => {
@@ -743,7 +825,7 @@ test('Glooko v3 graph transform applies DST-aware timezone to fake-UTC timestamp
   assert.equal(result.entries[1].dateString, '2026-07-15T06:53:20.000Z');
 });
 
-test('Glooko v3 graph x coordinates remain absolute Unix timestamps', () => {
+test('Glooko legacy v3 graph x coordinates use the same local clock as raw EGVs', () => {
   const source = glookoSource({
     glookoTimezone: 'Europe/Prague',
     glookoUseV3Graph: true,
@@ -755,7 +837,7 @@ test('Glooko v3 graph x coordinates remain absolute Unix timestamps', () => {
     v3Graph: { series: { cgmNormal: [{ x: Date.parse(instant) / 1000, value: 12000 }] } }
   });
 
-  assert.equal(result.entries[0].dateString, instant);
+  assert.equal(result.entries[0].dateString, '2026-07-15T06:53:20.000Z');
 });
 
 test('Glooko IANA timezone takes precedence over fixed timezone offset', () => {

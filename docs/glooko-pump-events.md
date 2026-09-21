@@ -1,5 +1,9 @@
 # Glooko: pump events, alarms and guid deduplication
 
+This document records the earlier **legacy-mode** implementation. The default
+paginated sync implementation, its stable identities, additional event coverage,
+and restart handling are described in [Glooko sync](glooko-sync.md).
+
 Glooko carries the pump's own event and alarm log, but the driver never
 requested either. This adds them, so `cage`, `sage` and `iage` populate from the
 pump's own record instead of needing site and sensor changes logged by hand in

@@ -187,35 +187,55 @@ To synchronize from Glooko use the following variables.
 * `CONNECT_GLOOKO_DEVICE_ID=` optional stable device identity
 * `CONNECT_GLOOKO_SERIAL_NUMBER=` optional stable serial number
 * `CONNECT_GLOOKO_WEB_ORIGIN=` optional web origin override for regional/custom hosts
-* `CONNECT_GLOOKO_AUTH_MODE=api` optional auth mode: `api`, `web`, or `auto`
-* `CONNECT_GLOOKO_USE_V3_GRAPH=true` optional v3 graph CGM fallback when v2 returns no readings
+* `CONNECT_GLOOKO_AUTH_MODE=api` optional auth mode: `api`, `v3`, `web`, or `auto`
+* `CONNECT_GLOOKO_DATA_MODE=sync` paginated sync feeds (default); `legacy` retains the earlier fetcher
+* `CONNECT_GLOOKO_LOOKBACK_DAYS=14` glucose history and initial treatment update window, from 1 to 90 days; changing it backfills the requested glucose window in resumable batches (sync mode)
+* `CONNECT_GLOOKO_IMPORT_PROFILE=false` opt in to importing a complete active pump profile; this can change Nightscout's active calculation settings
+* `CONNECT_GLOOKO_EXTENDED_BOLUS_DURATION_UNIT=` leave unset unless the device's duration unit is verified; accepts `seconds` or `minutes`
+* `CONNECT_GLOOKO_SKIP_ENTRIES=false` set true when another connector already supplies CGM
+* `CONNECT_GLOOKO_USE_V3_GRAPH=true` enables the optional graph fallback in **legacy** mode; sync mode manages fallback automatically
 
 By default, `CONNECT_GLOOKO_SERVER` is set to `api.glooko.com` because the
 default value for `CONNECT_GLOOKO_ENV` is `default`.
-* `CONNECT_GLOOKO_ENV` is the word `default` by default.  Other values are
-  `eu`, `development`, `production`, for `api.glooko.work`, and
+* `CONNECT_GLOOKO_ENV` defaults to `default` (`api.glooko.com`). `us` is an
+  alias for `default`; `eu`, `de-fr`, `development`, and `production` select
+  `eu.api.glooko.com`, `de-fr.api.glooko.com`, `api.glooko.work`, and
   `externalapi.glooko.com`, respectively.
-* `CONNECT_GLOOKO_SERVER` the hostname server to use - `api.glooko.com` by `default`, `eu.api.glooko.com` for EU users, or a more specific regional host such as `de-fr.api.glooko.com`.
-* Set `CONNECT_GLOOKO_ENV=de-fr` to select `de-fr.api.glooko.com` without an explicit server override.
+* `CONNECT_GLOOKO_SERVER` overrides the hostname selected by `CONNECT_GLOOKO_ENV`.
 * `CONNECT_GLOOKO_TIMEZONE` defines the IANA timezone used to convert Glooko local wall-clock timestamps, for example `Europe/Prague`. This handles daylight saving time based on each timestamp.
 * `CONNECT_GLOOKO_TIMEZONE_OFFSET` defines a fixed offset from UTC in hours and is retained for backward compatibility. `CONNECT_GLOOKO_TIMEZONE` takes precedence when both are configured.
 
 If both, `CONNECT_GLOOKO_SERVER` and `CONNECT_GLOOKO_ENV` are set, only
 `CONNECT_GLOOKO_SERVER` will be used.
 
-Glooko uploads treatments and, when the v2 `cgm/readings` endpoint returns
-readings, CGM entries. Some EU accounts may require newer web-login or v3 graph
-flows. `CONNECT_GLOOKO_AUTH_MODE=web` uses Glooko's web sign-in form with CSRF
-token handling; `auto` tries API login first and falls back to web login on a
-422 response. The optional v3 graph fallback fetches `cgmHigh`, `cgmNormal`,
-and `cgmLow` series when v2 CGM readings are empty or rejected with HTTP 422,
-using the same authenticated session cookie. A rejected v3 fallback is surfaced
-as an error when v2 CGM has also failed, rather than reported as an empty batch.
+The default sync mode exhausts Glooko's paginated feeds for CGM, meter readings,
+boluses, delivered/temporary/suspended basal, foods, injection records, notes,
+exercise, pump events and alarms. It supplements those with v3 pump-mode
+intervals and uses v3 graph CGM as a fallback. Clinical timestamps use the
+configured timezone; regional server selection remains explicit and independent
+of timezone. See [mapping, safeguards and limitations](docs/glooko-sync.md).
+Automated-delivery, maximum-delivery and pause intervals are displayed using
+Nightscout's existing duration notes. They are historical annotations, not basal
+rates, live pump status or alerts; they do not change calculated insulin doses.
+
+`CONNECT_GLOOKO_AUTH_MODE=web` uses Glooko's web sign-in form with CSRF
+token handling; `v3` uses the JSON v3 sign-in followed by a session-user lookup.
+The v3 flow is adapted from [Nocturne's Glooko connector](https://github.com/nightscout/nocturne/tree/main/src/Connectors/Nocturne.Connectors.Glooko).
+`auto` tries API login first, then JSON v3 on HTTP 422, then the legacy web form
+only if v3 also returns 422. Authentication failures (401/403) are not retried
+through other login methods. The legacy web form returned 422 for the live
+de-fr sample; `api` and `v3` worked.
+The CGM fallback uses `cgmHigh`, `cgmNormal`, and `cgmLow` with the same
+authenticated session cookie. Authentication, throttling, server errors,
+malformed pages and stalled pagination fail the frame. Optional feeds rejected
+with 404/422 are reported as unavailable, not silently described as successful.
 
 For a read-only check against a real account, see the
 [Glooko integration test plan](docs/glooko-live-test-plan.md). The probe fetches
 and transforms one frame in memory without writing to Nightscout; use an
 ignored `.env.local` file for credentials and never commit it.
+The same test plan describes the explicitly opted-in multi-account runner for
+full REST and plugin writes to a disposable local Nightscout database.
 
 ### Libre Link Up
 To synchronize from Libre Link Up use the following variables.

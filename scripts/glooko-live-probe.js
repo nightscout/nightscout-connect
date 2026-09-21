@@ -3,14 +3,15 @@
 // One read-only Glooko cycle. Never sends data to Nightscout or prints payloads.
 const axios = require('axios');
 const glookoSource = require('../lib/sources/glooko');
+const { summarizeBatch } = require('./glooko-live-probe-summary');
 
 const args = process.argv.slice(2);
 const live = args.includes('--live');
 const modeArg = args.find((arg) => arg.startsWith('--auth-mode='));
 const authMode = modeArg ? modeArg.slice('--auth-mode='.length) : process.env.CONNECT_GLOOKO_AUTH_MODE || 'api';
 
-if (!live || !['api', 'web', 'auto'].includes(authMode)) {
-  process.stderr.write('Read-only live Glooko probe. Use --live [--auth-mode=api|web|auto] with an env file.\n');
+if (!live || !['api', 'v3', 'web', 'auto'].includes(authMode)) {
+  process.stderr.write('Read-only live Glooko probe. Use --live [--auth-mode=api|v3|web|auto] with an env file.\n');
   process.exitCode = 2;
 } else {
   run().catch((error) => {
@@ -22,10 +23,6 @@ if (!live || !['api', 'web', 'auto'].includes(authMode)) {
     }) + '\n');
     process.exitCode = 1;
   });
-}
-
-function count (items) {
-  return Array.isArray(items) ? items.length : 0;
 }
 
 function patientCodeFor (session) {
@@ -50,6 +47,9 @@ async function run () {
     glookoUseV3Graph: process.env.CONNECT_GLOOKO_USE_V3_GRAPH,
     glookoSkipEntries: process.env.CONNECT_GLOOKO_SKIP_ENTRIES,
     glookoAuthMode: authMode
+    , glookoDataMode: process.env.CONNECT_GLOOKO_DATA_MODE
+    , glookoLookbackDays: process.env.CONNECT_GLOOKO_LOOKBACK_DAYS
+    , glookoImportProfile: process.env.CONNECT_GLOOKO_IMPORT_PROFILE
   };
   const validated = glookoSource.validate(input);
   if (!validated.ok) {
@@ -83,24 +83,11 @@ async function run () {
     const batch = await source.dataFromSesssion(session, null);
     stage = 'transform';
     const transformed = source.transformData(batch);
-    const series = batch.v3Graph && batch.v3Graph.series || {};
     process.stdout.write(JSON.stringify({
       ok: true,
       authMode,
       patientCodeResolved: true,
-      sourceCounts: {
-        v2Readings: count(batch.readings),
-        v3Readings: count(series.cgmHigh) + count(series.cgmNormal) + count(series.cgmLow),
-        boluses: count(batch.normalBoluses),
-        scheduledBasals: count(batch.wideBasals),
-        pumpEvents: count(batch.pumpEvents),
-        pumpAlarms: count(batch.pumpAlarms)
-      },
-      transformedCounts: {
-        entries: count(transformed.entries),
-        treatments: count(transformed.treatments),
-        devicestatus: count(transformed.devicestatus)
-      }
+      ...summarizeBatch(batch, transformed)
     }) + '\n');
   } catch (error) {
     error.stage = error.stage || stage;
