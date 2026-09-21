@@ -19,15 +19,17 @@ function sidecarLoop (input, output) {
   // select an available input source implementation based on env
   // variables/config
   var driver = sources(input);
-  console.log("INPUT PARAMS", input);
-  var impl = driver(input, axios);
+  var _v = driver.validate ? driver.validate(input) : null;
+  if (_v && !_v.ok) console.log("VALIDATION ERRORS", _v.errors.map(function(e){return e.desc;}));
+  var _opts = (_v && _v.ok) ? _v.config : input;
+  console.log("DRIVER CONFIGURED", { kind: input.kind });
+  var impl = driver(_opts, axios);
   // var impl = testImpl.fakeFrame({ }, axios);
 
   impl.generate_driver(make);
 
   var built = make( );
   // console.log("BUILDER OUTPUT", built);
-  console.log("BUILDER OUTPUT", JSON.stringify(built, null, 2));
   return built;
 
 }
@@ -45,7 +47,7 @@ function main (argv) {
   // Apply compatibility layer for old bridge plugin environment variables
   var connectInput = applyBridgeCompatibility(argv);
 
-  var input = { kind: source, url: sourceEndpoint, apiSecret: sourceApiSecret, ...connectInput };
+  var input = { ...connectInput, kind: source, sourceEndpoint, sourceApiSecret, url: sourceEndpoint, apiSecret: sourceApiSecret };
 
   var things = sidecarLoop(input, output);
   var actor = interpret(things);

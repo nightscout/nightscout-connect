@@ -1,0 +1,50 @@
+{
+  "entries": [
+    {
+      "type": "sgv",
+      "sgv": 141,
+      "date": 1760000000000,
+      "dateString": "2025-10-09T08:53:20.000Z",
+      "direction": "Flat",
+      "device": "loop://test-device"
+    }
+  ],
+  "treatments": [
+    {
+      "eventType": "Temp Basal",
+      "created_at": "2025-10-09T08:54:20.000Z",
+      "timestamp": "2025-10-09T08:54:20.000Z",
+      "enteredBy": "loop://test-device",
+      "rate": 0,
+      "duration": 30
+    }
+  ],
+  "devicestatus": [
+    {
+      "created_at": "2025-10-09T08:55:20.000Z",
+      "device": "loop://test-device",
+      "loop": {
+        "name": "TestLoop",
+        "version": "3.8.1",
+        "iob": {
+          "iob": 1.4,
+          "timestamp": "2025-10-09T08:55:00.000Z"
+        }
+      }
+    }
+  ],
+  "profiles": [
+    {
+      "created_at": "2025-10-09T08:56:20.000Z",
+      "defaultProfile": "Default",
+      "enteredBy": "test-user",
+      "store": {
+        "Default": {
+          "dia": 6,
+          "timezone": "UTC",
+          "units": "mg/dl"
+        }
+      }
+    }
+  ]
+}
