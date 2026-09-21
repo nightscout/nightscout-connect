@@ -207,8 +207,9 @@ readings, CGM entries. Some EU accounts may require newer web-login or v3 graph
 flows. `CONNECT_GLOOKO_AUTH_MODE=web` uses Glooko's web sign-in form with CSRF
 token handling; `auto` tries API login first and falls back to web login on a
 422 response. The optional v3 graph fallback fetches `cgmHigh`, `cgmNormal`,
-and `cgmLow` series when v2 CGM readings are empty, using the same
-authenticated session cookie.
+and `cgmLow` series when v2 CGM readings are empty or rejected with HTTP 422,
+using the same authenticated session cookie. A rejected v3 fallback is surfaced
+as an error when v2 CGM has also failed, rather than reported as an empty batch.
 
 ### Libre Link Up
 To synchronize from Libre Link Up use the following variables.

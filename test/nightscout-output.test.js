@@ -54,3 +54,14 @@ test('Nightscout output records all supported collections', async () => {
     '/api/v1/profile.json'
   ]);
 });
+
+test('Nightscout output does not repost an unchanged device-status snapshot', async () => {
+  const transport = fakeAxios();
+  const output = nightscoutOutput({ url: 'https://example.test', apiSecret: 'secret' }, transport);
+  const batch = { devicestatus: [{ created_at: '2026-07-15T06:53:20.000Z' }] };
+
+  await output(batch);
+  await output(batch);
+
+  assert.equal(transport.calls.filter((call) => call.method === 'post' && call.path === '/api/v1/devicestatus.json').length, 1);
+});

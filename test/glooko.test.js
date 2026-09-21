@@ -432,6 +432,109 @@ test('Glooko data fetch can resolve patient code from v3 session profile before 
   assert.deepEqual(batch.v3Graph, { series: { cgmNormal: [{ x: 1760000000, value: 12345 }] } });
 });
 
+test('Glooko falls back to v3 CGM when the v2 CGM request returns 422', async () => {
+  const rejected = new Error('Unprocessable');
+  rejected.response = { status: 422 };
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoUseV3Graph: true,
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios((call) => {
+    if (call.path.startsWith('/api/v2/cgm/')) {
+      return Promise.reject(rejected);
+    }
+    if (call.path.startsWith('/api/v2/pumps/scheduled_basals')) return Promise.resolve({ data: { scheduledBasals: [] } });
+    if (call.path.startsWith('/api/v2/pumps/normal_boluses')) return Promise.resolve({ data: { normalBoluses: [] } });
+    if (call.path.startsWith('/api/v2/pumps/events')) return Promise.resolve({ data: { events: [] } });
+    if (call.path.startsWith('/api/v2/pumps/alarms')) return Promise.resolve({ data: { alarms: [] } });
+    if (call.path.startsWith('/api/v3/graph/data')) {
+      assert.deepEqual(call.options.params, {});
+      return Promise.resolve({ data: { series: { cgmNormal: [{ x: 1760000000, value: 12345 }] } } });
+    }
+    throw new Error('unexpected path ' + call.path);
+  }));
+
+  const batch = await source.dataFromSesssion({
+    cookies: '_logbook-web_session=session-123',
+    user: { userLogin: { glookoCode: 'patient-123' } }
+  }, null);
+
+  assert.equal(source.transformData(batch).entries.length, 1);
+});
+
+test('Glooko does not report an empty batch when both v2 and v3 CGM fail', async () => {
+  const rejected = new Error('Unprocessable');
+  rejected.response = { status: 422 };
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoUseV3Graph: true,
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios(() => Promise.reject(rejected)));
+
+  await assert.rejects(() => source.dataFromSesssion({
+    cookies: '_logbook-web_session=session-123',
+    user: { userLogin: { glookoCode: 'patient-123' } }
+  }, null), /Unprocessable/);
+});
+
+test('Glooko does not silently drop treatments when a pump request returns 422', async () => {
+  const rejected = new Error('Pump request rejected');
+  rejected.response = { status: 422 };
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoUseV3Graph: true,
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios((call) => {
+    if (call.path.startsWith('/api/v2/pumps/normal_boluses')) return Promise.reject(rejected);
+    if (call.path.startsWith('/api/v2/pumps/scheduled_basals')) return Promise.resolve({ data: { scheduledBasals: [] } });
+    if (call.path.startsWith('/api/v2/cgm/readings')) return Promise.resolve({ data: { readings: [] } });
+    if (call.path.startsWith('/api/v2/pumps/events')) return Promise.resolve({ data: { events: [] } });
+    if (call.path.startsWith('/api/v2/pumps/alarms')) return Promise.resolve({ data: { alarms: [] } });
+    throw new Error('unexpected path ' + call.path);
+  }));
+
+  await assert.rejects(() => source.dataFromSesssion({
+    cookies: '_logbook-web_session=session-123',
+    user: { userLogin: { glookoCode: 'patient-123' } }
+  }, null), /Pump request rejected/);
+});
+
+test('Glooko skips already imported pump records by source guid', async () => {
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios((call) => {
+    if (call.path.startsWith('/api/v2/pumps/scheduled_basals')) {
+      return Promise.resolve({ data: { scheduledBasals: [{ guid: 'basal-1', pumpTimestamp: '2026-07-15T09:00:00.000Z' }] } });
+    }
+    if (call.path.startsWith('/api/v2/pumps/normal_boluses')) {
+      return Promise.resolve({ data: { normalBoluses: [{ guid: 'bolus-1', pumpTimestamp: '2026-07-15T09:00:00.000Z' }] } });
+    }
+    if (call.path.startsWith('/api/v2/cgm/readings')) return Promise.resolve({ data: { readings: [] } });
+    if (call.path.startsWith('/api/v2/pumps/events')) {
+      return Promise.resolve({ data: { events: [{ guid: 'event-1', type: 'pod_activating', pumpTimestamp: '2026-07-15T09:00:00.000Z' }] } });
+    }
+    if (call.path.startsWith('/api/v2/pumps/alarms')) {
+      return Promise.resolve({ data: { alarms: [{ guid: 'alarm-1', value: 'omnipod_low_reservoir', pump_timestamp: '2026-07-15T09:00:00.000Z' }] } });
+    }
+    throw new Error('unexpected path ' + call.path);
+  }));
+
+  const batch = await source.dataFromSesssion({
+    cookies: '_logbook-web_session=session-123',
+    user: { userLogin: { glookoCode: 'patient-123' } }
+  }, { seenGuids: ['basal-1', 'bolus-1', 'event-1', 'alarm-1'] });
+
+  assert.deepEqual(batch.normalBoluses, []);
+  assert.deepEqual(batch.wideBasals, []);
+  assert.deepEqual(batch.pumpEvents, []);
+  assert.deepEqual(batch.pumpAlarms, []);
+});
+
 test('Glooko transform applies configured timezone offset to fake-UTC readings', () => {
   const source = glookoSource({
     glookoEmail: 'user@example.com',
@@ -617,6 +720,53 @@ test('Glooko pump treatments preserve configured fixed timezone offset', () => {
   });
 
   assert.equal(result.treatments[0].eventTime, '2026-07-15T06:53:20.000Z');
+});
+
+test('Glooko pump events, alarms, and IOB use the configured DST-aware timezone', () => {
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'secret',
+    glookoTimezone: 'Europe/Prague',
+    glookoSkipEntries: true,
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios(() => Promise.resolve({ data: {} })));
+
+  const result = source.transformData({
+    readings: [{ timestamp: '2026-07-15T08:53:20.000Z', value: 11000 }],
+    normalBoluses: [{
+      guid: 'bolus-1',
+      pumpTimestamp: '2026-07-15T08:53:20.000Z',
+      insulinDelivered: 1,
+      insulinOnBoard: 2,
+      carbsInput: 0
+    }],
+    wideBasals: [{
+      guid: 'basal-1',
+      pumpTimestamp: '2026-07-15T09:00:00.000Z',
+      rate: 1,
+      duration: 1800
+    }],
+    pumpEvents: [{
+      guid: 'event-1',
+      type: 'pod_activating',
+      pumpTimestamp: '2026-07-15T09:05:00.000Z'
+    }],
+    pumpAlarms: [{
+      guid: 'alarm-1',
+      value: 'omnipod_low_reservoir',
+      pump_timestamp: '2026-07-15T09:10:00.000Z'
+    }]
+  });
+
+  assert.deepEqual(result.entries, []);
+  assert.equal(result.treatments.find((item) => item.glookoGuid === 'bolus-1').eventTime, '2026-07-15T06:53:20.000Z');
+  assert.equal(result.treatments.find((item) => item.glookoGuid === 'bolus-1').eventType, 'Correction Bolus');
+  assert.equal(result.treatments.find((item) => item.glookoGuid === 'basal-1').created_at, '2026-07-15T07:00:00.000Z');
+  assert.equal(result.treatments.find((item) => item.glookoGuid === 'event-1').eventTime, '2026-07-15T07:05:00.000Z');
+  assert.equal(result.treatments.find((item) => item.glookoGuid === 'event-1').eventType, 'Site Change');
+  assert.equal(result.treatments.find((item) => item.glookoGuid === 'alarm-1').eventTime, '2026-07-15T07:10:00.000Z');
+  assert.equal(result.treatments.find((item) => item.glookoGuid === 'alarm-1').eventType, 'Note');
+  assert.equal(result.devicestatus[0].created_at, '2026-07-15T06:53:20.000Z');
 });
 
 test('Glooko transform tolerates missing readings', () => {

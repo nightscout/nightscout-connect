@@ -21,7 +21,7 @@ function sidecarLoop (input, output) {
   var _v = driver.validate ? driver.validate(input) : null;
   if (_v && !_v.ok) console.log("VALIDATION ERRORS", _v.errors.map(function(e){return e.desc;}));
   var _opts = (_v && _v.ok) ? _v.config : input;
-  console.log("DRIVER OPTS baseURL:", _opts.baseURL, "authMode:", _opts.glookoAuthMode);
+  console.log("DRIVER CONFIGURED", { kind: input.kind });
   var impl = driver(_opts, axios);
   // var impl = testImpl.fakeFrame({ }, axios);
 
@@ -29,26 +29,24 @@ function sidecarLoop (input, output) {
 
   var built = make( );
   // console.log("BUILDER OUTPUT", built);
-  console.log("BUILDER OUTPUT", JSON.stringify(built, null, 2));
   return built;
 
 }
 
 function main (argv) {
-  console.log("STARTING", argv);
+  console.log("STARTING", { source: argv.source });
   // selected output
   // argv.nightscoutEndpoint;
   // argv.apiSecret;
   // 
   var output = { name: 'nightscout', url: argv.nightscoutEndpoint, apiSecret: argv.apiSecret };
-  console.log("CONFIGURED OUTPUT", output);
+  console.log("CONFIGURED OUTPUT", { name: output.name });
   var input = Object.assign({}, argv, { kind: argv.source, url: argv.sourceEndpoint, apiSecret: argv.sourceApiSecret });
   // argv now carries every CONNECT_* env var, credentials included, so log the
   // shape rather than the values.
-  console.log("CONFIGURED INPUT", { kind: input.kind, url: input.url, keys: Object.keys(input).length });
+  console.log("CONFIGURED INPUT", { kind: input.kind });
 
   var things = sidecarLoop(input, output);
-  console.log(things);
   var actor = interpret(things);
   actor.start( );
   actor.send({type: 'START'});

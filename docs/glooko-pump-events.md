@@ -68,10 +68,17 @@ not deduplicate devicestatus. Records not strictly newer than
 `bookmark.devicestatus` - which upstream already seeds and refreshes - are now
 skipped.
 
+## Related work
+
+- **Timestamp conversion** now uses the configured IANA timezone across
+  readings, treatments, events, alarms and device status, incorporating the
+  daylight-saving work from [#58](https://github.com/nightscout/nightscout-connect/pull/58).
+- **CGM retrieval** can fall back to v3 graph data when enabled, including when
+  the v2 CGM endpoint rejects the request with HTTP 422. Pump endpoint failures
+  still fail the fetch so missing treatments cannot be mistaken for no data.
+
 ## Not included here
 
-- **Timestamp conversion** is left exactly as upstream does it, a fixed offset.
-  DST-correct conversion is #58's subject and belongs there.
 - **Food import and carb-gap flagging** are held back. They are implemented but
   unexercised: the account they were written against logs no food, so the code
   path runs with no input.
