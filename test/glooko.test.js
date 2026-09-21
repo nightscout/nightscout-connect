@@ -18,6 +18,19 @@ function fakeAxios (handler) {
   };
 }
 
+function assertHasV2SyncParams (call) {
+  assert.ok(call.options.params.lastGuid);
+  assert.equal(typeof call.options.params.lastUpdatedAt, 'string');
+  assert.ok(call.options.params.limit > 0);
+}
+
+function assertHasNoV2SyncParams (call) {
+  const params = call.options && call.options.params || {};
+  assert.equal(params.lastGuid, undefined);
+  assert.equal(params.lastUpdatedAt, undefined);
+  assert.equal(params.limit, undefined);
+}
+
 test('Glooko validation supports default, EU, and explicit servers', () => {
   const common = {
     glookoEmail: 'user@example.com',
@@ -354,12 +367,15 @@ test('Glooko data fetch adds v3 graph fallback when v2 CGM readings are empty', 
     calls.push(call);
     assert.equal(call.options.headers.Host, 'de-fr.api.glooko.com');
     if (call.path.startsWith('/api/v2/pumps/scheduled_basals')) {
+      assertHasV2SyncParams(call);
       return Promise.resolve({ data: { scheduledBasals: [] } });
     }
     if (call.path.startsWith('/api/v2/pumps/normal_boluses')) {
+      assertHasV2SyncParams(call);
       return Promise.resolve({ data: { normalBoluses: [] } });
     }
     if (call.path.startsWith('/api/v2/cgm/readings')) {
+      assertHasV2SyncParams(call);
       return Promise.resolve({ data: { readings: [] } });
     }
     if (call.path.startsWith('/api/v2/pumps/events')) {
@@ -369,6 +385,7 @@ test('Glooko data fetch adds v3 graph fallback when v2 CGM readings are empty', 
       return Promise.resolve({ data: { alarms: [] } });
     }
     if (call.path.startsWith('/api/v3/graph/data')) {
+      assertHasNoV2SyncParams(call);
       assert.match(call.path, /series\[\]=cgmNormal/);
       assert.doesNotMatch(call.path, /series%5B%5D/);
       return Promise.resolve({ data: { series: { cgmNormal: [{ x: 1760000000, value: 12345 }] } } });
@@ -414,9 +431,11 @@ test('Glooko data fetch can resolve patient code from v3 session profile before 
       return Promise.resolve({ data: { readings: [] } });
     }
     if (call.path === '/api/v3/session/users') {
+      assertHasNoV2SyncParams(call);
       return Promise.resolve({ data: { currentUser: { glookoCode: 'patient-from-profile' } } });
     }
     if (call.path.startsWith('/api/v3/graph/data')) {
+      assertHasNoV2SyncParams(call);
       assert.match(call.path, /patient=patient-from-profile/);
       return Promise.resolve({ data: { series: { cgmNormal: [{ x: 1760000000, value: 12345 }] } } });
     }
@@ -500,6 +519,73 @@ test('Glooko does not silently drop treatments when a pump request returns 422',
     cookies: '_logbook-web_session=session-123',
     user: { userLogin: { glookoCode: 'patient-123' } }
   }, null), /Pump request rejected/);
+});
+
+test('Glooko uses the older treatment bookmark for pump data, not the newer glucose bookmark', async () => {
+  const calls = [];
+  const treatmentBookmark = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const entryBookmark = new Date(Date.now() - 5 * 60 * 1000);
+  const source = glookoSource({
+    glookoEmail: 'user@example.com',
+    glookoPassword: 'test-password',
+    baseURL: 'https://api.glooko.com'
+  }, fakeAxios((call) => {
+    calls.push(call);
+    if (call.path.startsWith('/api/v2/pumps/scheduled_basals')) return Promise.resolve({ data: { scheduledBasals: [] } });
+    if (call.path.startsWith('/api/v2/pumps/normal_boluses')) return Promise.resolve({ data: { normalBoluses: [] } });
+    if (call.path.startsWith('/api/v2/pumps/events')) return Promise.resolve({ data: { events: [] } });
+    if (call.path.startsWith('/api/v2/pumps/alarms')) return Promise.resolve({ data: { alarms: [] } });
+    if (call.path.startsWith('/api/v2/cgm/readings')) return Promise.resolve({ data: { readings: [] } });
+    throw new Error('unexpected path ' + call.path);
+  }));
+
+  await source.dataFromSesssion({
+    cookies: '_logbook-web_session=test-session',
+    user: { userLogin: { glookoCode: 'test-patient' } }
+  }, { entries: entryBookmark, treatments: treatmentBookmark });
+
+  const pumpCalls = calls.filter((call) => /\/api\/v2\/pumps\/(normal_boluses|scheduled_basals)/.test(call.path)
+    && !call.options.params.patient);
+  const cgmCall = calls.find((call) => call.path.startsWith('/api/v2/cgm/readings'));
+  assert.equal(pumpCalls.length, 2);
+  for (const call of pumpCalls) {
+    assert.equal(call.options.params.lastUpdatedAt, treatmentBookmark.toISOString());
+    assert.ok(call.options.params.limit >= 35);
+  }
+  assert.equal(cgmCall.options.params.lastUpdatedAt, entryBookmark.toISOString());
+  assert.ok(cgmCall.options.params.limit <= 2);
+});
+
+test('Glooko authentication and fetch logs omit session and patient identifiers', async () => {
+  const originalLog = console.log;
+  const logged = [];
+  console.log = (...args) => logged.push(args.map((arg) => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' '));
+
+  try {
+    const source = glookoSource({
+      glookoEmail: 'user@example.com',
+      glookoPassword: 'private-password-marker',
+      baseURL: 'https://api.glooko.com'
+    }, fakeAxios((call) => {
+      if (call.method === 'post') return Promise.resolve({
+        headers: { 'set-cookie': ['_logbook-web_session=private-cookie; path=/'] },
+        data: { userLogin: { glookoCode: 'private-patient-code' } }
+      });
+      if (call.path.startsWith('/api/v2/pumps/scheduled_basals')) return Promise.resolve({ data: { scheduledBasals: [] } });
+      if (call.path.startsWith('/api/v2/pumps/normal_boluses')) return Promise.resolve({ data: { normalBoluses: [] } });
+      if (call.path.startsWith('/api/v2/pumps/events')) return Promise.resolve({ data: { events: [] } });
+      if (call.path.startsWith('/api/v2/pumps/alarms')) return Promise.resolve({ data: { alarms: [] } });
+      if (call.path.startsWith('/api/v2/cgm/readings')) return Promise.resolve({ data: { readings: [] } });
+      throw new Error('unexpected path ' + call.path);
+    }));
+    const session = await source.authFromCredentials();
+    await source.dataFromSesssion(session, null);
+  } finally {
+    console.log = originalLog;
+  }
+
+  const output = logged.join('\n');
+  assert.doesNotMatch(output, /private-password-marker|private-cookie|private-patient-code/);
 });
 
 test('Glooko skips already imported pump records by source guid', async () => {
