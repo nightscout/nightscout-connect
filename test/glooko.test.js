@@ -39,6 +39,10 @@ test('Glooko validation supports default, EU, and explicit servers', () => {
 
   assert.equal(glookoSource.validate(common).config.baseURL, 'https://api.glooko.com');
   assert.equal(glookoSource.validate({ ...common, glookoEnv: 'eu' }).config.baseURL, 'https://eu.api.glooko.com');
+  const deFr = glookoSource.validate({ ...common, glookoEnv: 'de-fr' });
+  assert.equal(deFr.ok, true);
+  assert.equal(deFr.config.baseURL, 'https://de-fr.api.glooko.com');
+  assert.equal(deFr.config.glookoWebOrigin, 'https://de-fr.my.glooko.com');
   assert.equal(glookoSource.validate({ ...common, glookoEnv: 'ca' }).config.baseURL, 'https://ca.api.glooko.com');
   assert.equal(
     glookoSource.validate({ ...common, glookoServer: 'de-fr.api.glooko.com' }).config.baseURL,
