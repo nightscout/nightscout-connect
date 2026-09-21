@@ -430,6 +430,12 @@ test('Glooko data fetch can resolve patient code from v3 session profile before 
     if (call.path.startsWith('/api/v2/cgm/readings')) {
       return Promise.resolve({ data: { readings: [] } });
     }
+    if (call.path.startsWith('/api/v2/pumps/events')) {
+      return Promise.resolve({ data: { events: [] } });
+    }
+    if (call.path.startsWith('/api/v2/pumps/alarms')) {
+      return Promise.resolve({ data: { alarms: [] } });
+    }
     if (call.path === '/api/v3/session/users') {
       assertHasNoV2SyncParams(call);
       return Promise.resolve({ data: { currentUser: { glookoCode: 'patient-from-profile' } } });
@@ -442,13 +448,28 @@ test('Glooko data fetch can resolve patient code from v3 session profile before 
     throw new Error('unexpected path ' + call.path);
   }));
 
-  const batch = await source.dataFromSesssion({
+  const session = await source.sessionFromAuth({
     cookies: '_logbook-web_session=session-123',
     user: { success: true }
-  }, null);
+  });
+  const batch = await source.dataFromSesssion(session, null);
 
   assert.deepEqual(batch.userProfile, { currentUser: { glookoCode: 'patient-from-profile' } });
   assert.deepEqual(batch.v3Graph, { series: { cgmNormal: [{ x: 1760000000, value: 12345 }] } });
+  assert.ok(calls.some((call) => call.path.startsWith('/api/v2/pumps/normal_boluses')));
+});
+
+test('Glooko refuses an authenticated session without a resolvable patient code', async () => {
+  const calls = [];
+  const source = glookoSource({ baseURL: 'https://eu.api.glooko.com' }, fakeAxios((call) => {
+    calls.push(call);
+    assert.equal(call.path, '/api/v3/session/users');
+    assertHasNoV2SyncParams(call);
+    return Promise.resolve({ data: { currentUser: {} } });
+  }));
+  await assert.rejects(() => source.sessionFromAuth({ cookies: 'session=x', user: { success: true } }), /patient code/);
+  await assert.rejects(() => source.dataFromSesssion({ cookies: 'session=x', user: { success: true } }, null), /patient code/);
+  assert.equal(calls.length, 1);
 });
 
 test('Glooko falls back to v3 CGM when the v2 CGM request returns 422', async () => {
@@ -519,6 +540,23 @@ test('Glooko does not silently drop treatments when a pump request returns 422',
     cookies: '_logbook-web_session=session-123',
     user: { userLogin: { glookoCode: 'patient-123' } }
   }, null), /Pump request rejected/);
+});
+
+test('Glooko does not mistake a failed pump-event request for no events', async () => {
+  const failure = new Error('Pump events unavailable');
+  failure.response = { status: 500 };
+  const source = glookoSource({ baseURL: 'https://eu.api.glooko.com' }, fakeAxios((call) => {
+    if (call.path.startsWith('/api/v2/pumps/events')) return Promise.reject(failure);
+    if (call.path.startsWith('/api/v2/pumps/scheduled_basals')) return Promise.resolve({ data: { scheduledBasals: [] } });
+    if (call.path.startsWith('/api/v2/pumps/normal_boluses')) return Promise.resolve({ data: { normalBoluses: [] } });
+    if (call.path.startsWith('/api/v2/pumps/alarms')) return Promise.resolve({ data: { alarms: [] } });
+    if (call.path.startsWith('/api/v2/cgm/readings')) return Promise.resolve({ data: { readings: [] } });
+    throw new Error('unexpected path ' + call.path);
+  }));
+
+  await assert.rejects(() => source.dataFromSesssion({
+    cookies: 'session=x', user: { userLogin: { glookoCode: 'patient-123' } }
+  }, null), /Pump events unavailable/);
 });
 
 test('Glooko uses the older treatment bookmark for pump data, not the newer glucose bookmark', async () => {
@@ -688,6 +726,7 @@ test('Glooko v3 graph transform applies DST-aware timezone to fake-UTC timestamp
           },
           {
             x: Date.parse('2026-01-15T08:53:20.000Z') / 1000,
+            timestamp: '2026-01-15T08:53:20.000Z',
             value: 11000,
             calculated: false
           }
@@ -698,6 +737,21 @@ test('Glooko v3 graph transform applies DST-aware timezone to fake-UTC timestamp
 
   assert.equal(result.entries[0].dateString, '2026-01-15T07:53:20.000Z');
   assert.equal(result.entries[1].dateString, '2026-07-15T06:53:20.000Z');
+});
+
+test('Glooko v3 graph x coordinates remain absolute Unix timestamps', () => {
+  const source = glookoSource({
+    glookoTimezone: 'Europe/Prague',
+    glookoUseV3Graph: true,
+    baseURL: 'https://eu.api.glooko.com'
+  }, fakeAxios(() => Promise.resolve({ data: {} })));
+  const instant = '2026-07-15T08:53:20.000Z';
+  const result = source.transformData({
+    readings: [],
+    v3Graph: { series: { cgmNormal: [{ x: Date.parse(instant) / 1000, value: 12000 }] } }
+  });
+
+  assert.equal(result.entries[0].dateString, instant);
 });
 
 test('Glooko IANA timezone takes precedence over fixed timezone offset', () => {

@@ -211,6 +211,11 @@ and `cgmLow` series when v2 CGM readings are empty or rejected with HTTP 422,
 using the same authenticated session cookie. A rejected v3 fallback is surfaced
 as an error when v2 CGM has also failed, rather than reported as an empty batch.
 
+For a read-only check against a real account, see the
+[Glooko integration test plan](docs/glooko-live-test-plan.md). The probe fetches
+and transforms one frame in memory without writing to Nightscout; use an
+ignored `.env.local` file for credentials and never commit it.
+
 ### Libre Link Up
 To synchronize from Libre Link Up use the following variables.
 * `CONNECT_SOURCE=linkup`
