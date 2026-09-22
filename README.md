@@ -246,11 +246,20 @@ To synchronize from Libre Link Up use the following variables.
 By default, `CONNECT_LINK_UP_SERVER` is set to `api-eu.libreview.io` because the
 default value for `CONNECT_LINK_UP_REGION` is `EU`.
 Other available values for `CONNECT_LINK_UP_REGION`:
-  * `US`, `EU`, `EU2`, `DE`, `FR`, `JP`, `AP`, `AU`, `AE`, `CA`
+  * `US`, `EU`, `EU2`, `GB`, `UK`, `DE`, `FR`, `JP`, `AP`, `AU`, `AE`, `CA`
+  * `GB` and `UK` select the same server as `EU2`. Use `EU2` for UK accounts.
 * `CONNECT_LINK_UP_SERVER` may be used to override the region mapping with an
   explicit LibreView API host.
 * `CONNECT_LINK_UP_VERSION` and `CONNECT_LINK_UP_PRODUCT` may be used when
-  LibreLinkUp requires a newer client version or product identifier.
+  LibreLinkUp requires a newer client version or product identifier. The defaults
+  are version `4.16.0` and product `llu.ios`; `llu.android` can be selected
+  explicitly if needed for an account.
+
+Login follows a supported region redirect from LibreLinkUp. If a login requires
+an account action, such as accepting updated terms, sign in to the official
+LibreLinkUp app and complete it there before restarting the connector. The
+connector does not accept terms on your behalf. A `429` response waits for the
+next scheduled cycle rather than making immediate retries.
 
 For folks connected to many patients, you can provide the patient ID by setting
 the `CONNECT_LINK_UP_PATIENT_ID` variable.
