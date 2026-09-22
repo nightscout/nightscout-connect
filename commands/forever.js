@@ -22,7 +22,7 @@ function sidecarLoop (input, output) {
   var _v = driver.validate ? driver.validate(input) : null;
   if (_v && !_v.ok) logger.log("VALIDATION ERRORS", { count: _v.errors.length });
   var _opts = (_v && _v.ok) ? _v.config : input;
-  console.log("DRIVER CONFIGURED", { kind: input.kind });
+  console.log("DRIVER CONFIGURED");
   var impl = driver(_opts, axios);
   // var impl = testImpl.fakeFrame({ }, axios);
 
@@ -35,7 +35,7 @@ function sidecarLoop (input, output) {
 }
 
 function main (argv) {
-  console.log("STARTING", { source: argv.source });
+  console.log("STARTING");
   // selected output
   // argv.nightscoutEndpoint;
   // argv.apiSecret;
@@ -45,7 +45,7 @@ function main (argv) {
   var input = Object.assign({}, argv, { kind: argv.source, url: argv.sourceEndpoint, apiSecret: argv.sourceApiSecret });
   // argv now carries every CONNECT_* env var, credentials included, so log the
   // shape rather than the values.
-  console.log("CONFIGURED INPUT", { kind: input.kind });
+  console.log("CONFIGURED INPUT");
 
   var things = sidecarLoop(input, output);
   var actor = interpret(things, { logger: logger.xstate });
