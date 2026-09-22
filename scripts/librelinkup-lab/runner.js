@@ -14,6 +14,7 @@ const { fixtureAxios, payload: fixturePayload } = require('./fixture');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const endpoint = 'http://127.0.0.1:1347';
 const nsRoot = '/opt/app';
+const { MARKER } = require('../lab-plugin-completion-marker');
 const device = 'nightscout-connect-librelinkup';
 const filter = kind => kind === 'treatments' ? { enteredBy: 'librelinkup' } : { device };
 const emit = value => process.stdout.write(JSON.stringify(value) + '\n');
@@ -70,7 +71,9 @@ async function main(args) {
     let tail = '';
     server.stdout.on('data', data => {
       tail = (tail + data.toString()).slice(-8192);
-      if (tail.includes('INTERNAL PERSISTENCE COMPLETE')) pluginCompleted = true;
+      // Printed by scripts/lab-plugin-completion.js (via preload.js), not by
+      // the connector, so it does not depend on CONNECT_DEBUG.
+      if (tail.includes(MARKER)) pluginCompleted = true;
     });
     server.stderr.on('data', () => {});
     server.on('error', () => {});
