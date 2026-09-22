@@ -8,6 +8,20 @@ const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const clone = value => JSON.parse(JSON.stringify(value));
 const collections = ['entries', 'treatments', 'devicestatus'];
 
+function safeFailure(error) {
+  let code = error.labCode || 'VALIDATION_FAILED';
+  const message = typeof error.message === 'string' ? error.message : '';
+  if (message === 'NO MATCHING LIBRE LINKUP PATIENT ID AVAILABLE') code = 'PATIENT_ID_NOT_FOUND';
+  else if (message === 'NO CONNECTION WITH LIBRE LINKUP AVAILABLE') code = 'NO_CONNECTIONS';
+  else if (message.startsWith('LibreLinkUp login returned no auth ticket')) code = 'NO_AUTH_TICKET';
+  else if (message.startsWith('LibreLinkUp account action required')) code = 'ACCOUNT_ACTION_REQUIRED';
+  else if (message.startsWith('LibreLinkUp login could not follow region')) code = 'REGION_REDIRECT_FAILED';
+  const networkCodes = ['ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'ECONNABORTED', 'ECONNRESET', 'ECONNREFUSED',
+    'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'ERR_TLS_CERT_ALTNAME_INVALID', 'EPROTO'];
+  return { code, status: Number.isInteger(error.status) ? error.status : null,
+    ...(networkCodes.includes(error.code) ? { networkCode: error.code } : {}) };
+}
+
 function accountsFrom(text) {
   const env = parseEnv(text);
   const ids = (env.LLU_TEST_ACCOUNTS || '').split(',').map(x => x.trim());
@@ -98,5 +112,5 @@ function verifyRows(kind, expected, saved) {
     }
   }
 }
-module.exports = { accountsFrom, sourceConfig, verifyMapping, rawTime, verifyRows, mergeBatch,
+module.exports = { accountsFrom, sourceConfig, verifyMapping, rawTime, verifyRows, mergeBatch, safeFailure,
   key, check, hash, clone, collections };

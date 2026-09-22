@@ -3,11 +3,20 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
-const { accountsFrom, sourceConfig, verifyMapping, rawTime, verifyRows, clone } = require('../scripts/librelinkup-lab/common');
+const { accountsFrom, sourceConfig, verifyMapping, rawTime, verifyRows, clone, safeFailure } = require('../scripts/librelinkup-lab/common');
 const { payload, fixtureAxios } = require('../scripts/librelinkup-lab/fixture');
 const sourceFactory = require('../lib/sources/librelinkup');
 const now = Date.parse('2026-09-22T08:00:00Z');
 const account = { username: 'synthetic', password: 'synthetic', region: 'UK', sensorInfo: true };
+
+test('live failure summaries distinguish account and network failures without disclosing source errors', () => {
+  assert.equal(safeFailure(new Error('NO MATCHING LIBRE LINKUP PATIENT ID AVAILABLE')).code, 'PATIENT_ID_NOT_FOUND');
+  assert.equal(safeFailure(new Error('LibreLinkUp login returned no auth ticket (status 2).')).code, 'NO_AUTH_TICKET');
+  assert.equal(safeFailure(new Error('LibreLinkUp account action required (tou); private data')).code, 'ACCOUNT_ACTION_REQUIRED');
+  assert.equal(safeFailure(Object.assign(new Error('private response'), { code: 'ENOTFOUND' })).networkCode, 'ENOTFOUND');
+  assert.deepEqual(safeFailure(Object.assign(new Error('secret-token user@example.test'), { code: 'secret-token', response: { data: 'private-data' } })),
+    { code: 'VALIDATION_FAILED', status: null });
+});
 
 test('lab template covers all 13 endpoints with isolated ports and explicit DE/FR choices', () => {
   const accounts = accountsFrom(require('node:fs').readFileSync(path.resolve(__dirname, '../docs/librelinkup-lab.env.example'), 'utf8'));

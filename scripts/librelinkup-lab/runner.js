@@ -9,7 +9,7 @@ const axios = require('axios');
 const sourceFactory = require('../../lib/sources/librelinkup');
 const restFactory = require('../../lib/outputs/nightscout');
 const internalFactory = require('../../lib/outputs/internal');
-const { accountsFrom, sourceConfig, verifyMapping, verifyRows, mergeBatch, check, hash, clone, collections } = require('./common');
+const { accountsFrom, sourceConfig, verifyMapping, verifyRows, mergeBatch, check, hash, clone, collections, safeFailure } = require('./common');
 const { fixtureAxios, payload: fixturePayload } = require('./fixture');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const endpoint = 'http://127.0.0.1:1347';
@@ -123,6 +123,7 @@ async function main(args) {
           // The normal source permits the first patient. A test lab must not
           // silently select a patient from a multi-patient follower account.
           http.interceptors.response.use(response => {
+            if (Number.isInteger(response.data?.status)) result.sourceStatus = response.data.status;
             if (response.config.url === '/llu/connections' && Array.isArray(response.data?.data)) {
               result.connectionCount = response.data.data.length;
             }
@@ -216,8 +217,7 @@ async function main(args) {
         delete result.stage;
       } catch (error) {
         // Only internally owned codes and numeric status may leave the runner.
-        result.error = { code: error.labCode || 'VALIDATION_FAILED',
-          status: Number.isInteger(error.status) ? error.status : null };
+        result.error = safeFailure(error);
         process.exitCode = 1;
       } finally { await stopServer(); }
       reports.push(result);

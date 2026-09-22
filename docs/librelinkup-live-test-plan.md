@@ -174,6 +174,19 @@ Unavailable sensor metadata is reported separately from successful glucose deliv
 Patient-selection, terms, access-denied and throttling errors remain failed tests;
 do not repeatedly rerun against a throttled account.
 
+Failures use safe codes such as `PATIENT_ID_NOT_FOUND`, `NO_AUTH_TICKET` and
+`ACCOUNT_ACTION_REQUIRED`, with numeric `sourceStatus` and a recognised network
+error code where available. Raw upstream errors are never included in reports.
+Some older production connectors ignore a configured patient ID when an account
+has only one connection. This source validates an explicit ID strictly. Correct
+the local selector only after confirming the intended connection; the lab still
+refuses to choose implicitly from multiple patients.
+
+If a timezone-inferred endpoint rejects a login that works in production, check
+the production starting host. A separate diagnostic run using that host may
+validate the account, but retain the failed regional result and do not count it
+as successful coverage of the originally requested endpoint.
+
 Live source logs and child Nightscout logs are suppressed, and Docker logging is
 disabled for these containers. Medical data remains in the local Mongo volume;
 optional sensor information includes serials. Do not share that volume or screenshots
