@@ -77,7 +77,9 @@ function manage (env, ctx) {
     var make = builder({ output, logger: log });
     var impl = driver(validated.config, axios, log);
     impl.generate_driver(make);
-    actor = interpret(make());
+    // Anything a machine logs goes through the connector logger as a fixed
+    // label, never the value (Andy Low, 6abefe1).
+    actor = interpret(make(), { logger: (label) => log.debug(typeof label === 'string' ? label : 'State machine log') });
     ctx.bus.once('data-processed', handle.run);
     ctx.bus.once('tearDown', handle.stop);
     ctx.bus.once('teardown', handle.stop);

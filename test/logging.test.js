@@ -221,3 +221,28 @@ test('errors that carry their status directly still report it', t => {
   assert.match(calls.at(-1).text, /LibreLinkUp request failed \(HTTP 429\)/);
   safe(calls);
 });
+
+for (const debug of [false, true]) {
+  test(`state machine log output is a fixed label through the logger, debug=${debug}`, async t => {
+    const calls = capture(t);
+    const ctx = { bus: new EventEmitter(), bootErrors: [] };
+    const handle = connect({ extendedSettings: { connect: { ...credentials, debug } } }, ctx);
+    try {
+      ctx.bus.removeListener('data-processed', handle.run);
+      // What xstate hands its logger for actions.log(expr, label). xstate's
+      // default logger is console.log bound at load, which writes past the
+      // console mock, so also watch the process streams for these two calls.
+      const written = [];
+      const streams = [process.stdout, process.stderr].map(stream => [stream, stream.write]);
+      for (const [stream] of streams) stream.write = chunk => { written.push(String(chunk)); return true; };
+      try {
+        handle().logger('Session debug', { context: { token: secret }, event: { data: secret } });
+        handle().logger({ context: { token: secret } });
+      } finally { for (const [stream, write] of streams) stream.write = write; }
+      assert.deepEqual(written, [], 'state machine output bypassed the connector logger');
+      assert.equal(calls.some(call => call.text.includes('Session debug')), debug);
+      assert.equal(calls.length > 0, debug);
+      safe(calls);
+    } finally { await handle.stop(); ctx.bus.removeAllListeners(); }
+  });
+}

@@ -104,14 +104,20 @@ async function runSource (t, kind, mode, debug) {
   output.gap_for = async () => ({ entries: new Date(now() - 3600000) });
   const make = builder({ output, logger: log });
   driver(validated.config, vendor.axios, log).generate_driver(make);
-  const actor = interpret(make());
+  // xstate's default logger is console.log bound when xstate loads, before
+  // the capture above exists, so it would write past it. Late-bind it so the
+  // capture sees exactly what the default logger would print.
+  const actor = interpret(make(), { logger: (...args) => console.log(...args) });
   try {
     actor.start();
     actor.send('START');
     for (let i = 0; i < 40 && vendor.state.requests < 2; i++) await delay(5);
     await delay(20);
-    // #61's case: bare xstate log actions dump { context, event }, and the
-    // drivers carry session material in event.data.
+    // #61's case: a bare xstate actions.log() dumps { context, event }, and
+    // the drivers carry session material in event.data. This reaches the root
+    // machine's DEBUG handlers only (invoked services are not in
+    // actor.children); test/log-call-sites.test.js is what bans bare
+    // actions.log() everywhere.
     const dump = { type: 'DEBUG', data: { cookies: 'session=' + CANARY + '; Path=/',
       user: { email: EMAIL, firstName: CANARY, dateOfBirth: CANARY } } };
     actor.send(dump);
