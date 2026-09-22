@@ -47,6 +47,10 @@ point.
 
 ## Testing
 
+For LibreLinkUp regression coverage and a private local Nightscout installation
+with multiple regional accounts, see the
+[LibreLinkUp test lab guide](docs/librelinkup-live-test-plan.md).
+
 The package has a Node test suite covering connector contracts and fake-server
 Nightscout connectivity paths:
 

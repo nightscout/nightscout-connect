@@ -10,7 +10,8 @@
     "nightscout-connect": "bin/nightscout-connect"
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test test/*.test.js",
+    "test:librelinkup:lab": "node scripts/librelinkup-lab.js"
   },
   "repository": {
     "type": "git",
