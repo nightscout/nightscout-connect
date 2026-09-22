@@ -1,0 +1,99 @@
+name: Publish to npm
+
+# Pushing a v* tag is the whole release. npm authenticates this workflow
+# through OIDC (trusted publishing), so no npm token is stored anywhere,
+# and every published version carries a provenance attestation that links
+# it to the tagged commit and this workflow run.
+#
+# One-time setup outside this file is described in docs/releasing.md.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      dist-tag: ${{ steps.version.outputs.dist-tag }}
+    steps:
+      # Actions are pinned by commit in this workflow because it can publish.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '24.20.0'
+          cache: npm
+      - name: Tag matches package.json
+        id: version
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match package.json version ${version}"
+            exit 1
+          fi
+          case "${version}" in
+            *-*) dist_tag=next ;;
+            *)   dist_tag=latest ;;
+          esac
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "dist-tag=${dist_tag}" >> "$GITHUB_OUTPUT"
+      - name: Tagged commit is on dev or main
+        run: |
+          for branch in dev main; do
+            if git merge-base --is-ancestor "${GITHUB_SHA}" "origin/${branch}"; then
+              echo "tagged commit is on ${branch}"
+              exit 0
+            fi
+          done
+          echo "::error::${GITHUB_SHA} is not on dev or main; push the branch before the tag"
+          exit 1
+      - name: Version is not already published
+        run: |
+          if npm view "nightscout-connect@${{ steps.version.outputs.version }}" version 2>/dev/null | grep -q .; then
+            echo "::error::nightscout-connect@${{ steps.version.outputs.version }} is already on npm; versions cannot be reused"
+            exit 1
+          fi
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm test
+      - name: Package contents
+        run: npm pack --dry-run
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    # Configure required reviewers on this environment so a person approves
+    # each publish; npm's trusted publisher entry names it too.
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '24.20.0'
+          registry-url: 'https://registry.npmjs.org'
+      - name: npm supports trusted publishing
+        run: |
+          # OIDC publishing needs npm 11.5.1 or later.
+          npm_version="$(npm --version)"
+          lowest="$(printf '%s\n' 11.5.1 "${npm_version}" | sort -V | head -n1)"
+          if [ "${lowest}" != "11.5.1" ]; then
+            echo "::error::npm ${npm_version} is older than 11.5.1"
+            exit 1
+          fi
+      - name: Publish
+        run: npm publish --provenance --access public --tag "${{ needs.verify.outputs.dist-tag }}"
