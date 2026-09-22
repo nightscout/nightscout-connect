@@ -54,10 +54,11 @@ test('output close settles pending storage waits without accepting later data', 
   assert.equal(ctx.bus.listenerCount('data-processed'), 0);
 });
 
-test('failed storage removes its data-processed waiter without needing another event', async () => {
+test('failed storage rejects with a sanitised error and leaves no extra waiter', async () => {
   const ctx = context(); ctx.entries.create = (rows, callback) => callback(new Error('fixture failure'));
   const output = internal({}, ctx);
-  assert.equal(await output({entries: [{sgv: 100}]}), null);
+  await assert.rejects(output({entries: [{sgv: 100}]}), (err) =>
+    err.message === 'Nightscout internal write failed' && !/fixture failure/.test(String(err)));
   assert.equal(ctx.bus.listenerCount('data-processed'), 1);
   if (output.close) output.close();
 });
@@ -74,7 +75,9 @@ test('successful output remains usable over two processing cycles', async () => 
 
 test('null collection fields still represent an empty batch', async () => {
   const ctx = context(), output = internal({}, ctx);
-  assert.equal(await output({entries: null, treatments: null, profiles: null, devicestatus: null}), null);
+  const known = await output({entries: null, treatments: null, profiles: null, devicestatus: null});
+  assert.equal(typeof known, 'object');
+  assert.notEqual(known, null);
   assert.equal(ctx.bus.listenerCount('data-processed'), 1);
   if (output.close) output.close();
 });
