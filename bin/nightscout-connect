@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+// Must load before yargs pulls in the commands, so nothing logs unscrubbed.
+require('../lib/log-scrub').install( );
+
 var argv = require('yargs')
   .scriptName('nightscout-connect')
   .usage('$0 <cmd> [args]')
