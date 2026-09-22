@@ -3,3 +3,6 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# Private local validation credentials, databases/config and reports
+.local/
