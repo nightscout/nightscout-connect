@@ -49,6 +49,23 @@ point.
     (`DEBUG_LOGGING` in supporting Nightscout versions), or stays quiet when
     that setting is absent. An explicit `false` or `off` overrides server
     debugging. Restart Nightscout after changing the environment setting.
+  * `CONNECT_START_JITTER_MS` - Spread the first upstream request over this
+    many milliseconds after start. **Defaults to `0`**, which is the right
+    answer for a self-hosted site: one connector is not a herd, and waiting
+    would only delay your own first reading. Set it when many accounts share
+    one process or one egress address - without it they all reach the vendor
+    in the same instant, on every restart and every deploy, which is the
+    pattern a per-IP rate limiter penalises.
+  * `CONNECT_INTERVAL_JITTER_MS` - Spread the wait between polls over this
+    many milliseconds. Also defaults to `0`. This applies only where the
+    source has declined to align to the data's own schedule, which is the
+    case when the vendor has produced nothing new - so it spreads a pool that
+    would otherwise be retrying in step. When the source does align, its own
+    driver decides the spread and this is not added.
+
+    Both are capped at five minutes (`300000`). LibreLinkUp also has its own
+    `CONNECT_LINK_UP_STARTUP_JITTER_MS` and `CONNECT_LINK_UP_INTERVAL_JITTER_MS`;
+    where both are set, the wider window is used.
 
 The embedded plugin logs warnings and failures regardless of debugging. Debug
 output contains operation summaries; authentication/session objects, patient

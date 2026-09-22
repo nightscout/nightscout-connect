@@ -78,6 +78,16 @@ for (const [globalDebug, override, expected] of [
       assert.equal(calls.filter(call => call.text.includes('data-loaded')).length, expected ? 10 : 0);
       assert.equal(calls.length > 0, expected);
       safe(calls);
+      await handle.stop();
+      for (const event of ['tick', 'data-processed', 'tearDown', 'teardown']) {
+        assert.equal(ctx.bus.listenerCount(event), 0, event);
+      }
+      const stoppedCalls = calls.length;
+      ctx.bus.emit('tick', { private: secret });
+      ctx.bus.emit('data-processed', sbx);
+      await handle.run();
+      assert.equal(handle().status, 2);
+      assert.equal(calls.length, stoppedCalls);
     } finally { await handle.stop(); ctx.bus.removeAllListeners(); }
   });
 }
