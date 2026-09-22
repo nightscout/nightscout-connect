@@ -112,3 +112,35 @@ test('CONNECT_START_JITTER_MS reaches the cycle machine', () => {
   const drawn = connector(Object.assign({ startJitterMs: 60000 }, base));
   assert.ok(drawn > 0 && drawn < 60000, `drew ${drawn}`);
 });
+
+// LibreLinkUp declares its own windows (CONNECT_LINK_UP_*_JITTER_MS); the
+// deployment-wide ones apply to every source. One mechanism serves both.
+test('a source-declared start window is used when the deployment sets none', () => {
+  const m = cycle({ startup_jitter_ms: 60000, delay_per_frame_error: () => 0, random: () => 0.5 });
+  assert.equal(m.options.delays.START_JITTER_DELAY({}, {}), 30000);
+  // and it is not applied a second time on the way into the first fetch
+  assert.equal(m.options.delays.MAIN_CYCLE_DELAY({ runs: 0, frames_missing: 0 }, {}), 0);
+});
+
+test('where both are set the wider window wins, in either direction', () => {
+  const drawn = (c) => cycle({ random: () => 0.999, ...c }).options.delays.START_JITTER_DELAY({}, {});
+  assert.equal(drawn({ start_jitter_ms: 10000, startup_jitter_ms: 60000 }), 59940);
+  assert.equal(drawn({ start_jitter_ms: 60000, startup_jitter_ms: 10000 }), 59940);
+  const interval = (c) => cycle({ random: () => 0.5, ...c }).options.delays.EXPECTED_DATA_INTERVAL_DELAY({ align_to: null }, {});
+  assert.equal(interval({ interval_jitter_ms: 10000, expected_interval_jitter_ms: 30000 }), INTERVAL + 15000);
+  assert.equal(interval({ interval_jitter_ms: 30000, expected_interval_jitter_ms: 10000 }), INTERVAL + 15000);
+});
+
+test('only the source window is added on the aligned path', () => {
+  const aligned = (c) => {
+    const align_to = Date.now() + 90000;
+    return cycle({ random: () => 0.5, ...c }).options.delays.EXPECTED_DATA_INTERVAL_DELAY({ align_to }, {});
+  };
+  assert.ok(Math.abs(aligned({ interval_jitter_ms: 30000 }) - 90000) < 1000, 'deployment window not added');
+  assert.ok(Math.abs(aligned({ expected_interval_jitter_ms: 30000 }) - 105000) < 1000, 'source window added');
+});
+
+test('no window is longer than five minutes', () => {
+  const drawn = cycle({ start_jitter_ms: 20 * 60 * 1000, random: () => 0.999 }).options.delays.START_JITTER_DELAY({}, {});
+  assert.ok(drawn <= 5 * 60 * 1000, `drew ${drawn}`);
+});
