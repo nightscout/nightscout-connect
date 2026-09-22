@@ -115,6 +115,7 @@ async function main(args) {
         stage: 'configuration', ok: false };
       try {
         const config = sourceConfig(account);
+        result.requestedHost = new URL(config.baseURL).hostname;
         const now = Math.floor(Date.now() / 60000) * 60000 - 60000;
         const transport = fixture ? fixtureAxios(now) : { create(options) {
           result.resolvedHost = new URL(options.baseURL).hostname;
@@ -134,6 +135,7 @@ async function main(args) {
         const auth = await source.authFromCredentials();
         result.stage = 'patient-selection';
         const session = await source.sessionFromAuth(auth);
+        if (!fixture) result.regionRedirected = result.resolvedHost !== result.requestedHost;
         check(account.patientId || result.connectionCount <= 1 || fixture, 'PATIENT_SELECTION_REQUIRED');
         result.stage = 'graph';
         const payload = await source.dataFromSesssion(session);

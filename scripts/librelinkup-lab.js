@@ -72,7 +72,7 @@ async function main() {
   if (action === 'stop') { compose(['down']); return; }
   if (action === 'status') {
     compose(['ps']);
-    for (const a of accounts) console.log(`${a.id}: http://127.0.0.1:${a.port} (${a.username && a.password ? 'configured' : 'credentials not configured'})`);
+    for (const a of accounts) console.log(`${a.id}: http://127.0.0.1:${a.port} (${a.username && a.password ? 'configured' : 'credentials not configured'}; ${a.region}: ${a.endpoint})`);
     return;
   }
   check(imageExists(), 'BUILD_NIGHTSCOUT_IMAGE_FIRST');

@@ -9,6 +9,23 @@ const sourceFactory = require('../lib/sources/librelinkup');
 const now = Date.parse('2026-09-22T08:00:00Z');
 const account = { username: 'synthetic', password: 'synthetic', region: 'UK', sensorInfo: true };
 
+test('lab template covers all 13 endpoints with isolated ports and explicit DE/FR choices', () => {
+  const accounts = accountsFrom(require('node:fs').readFileSync(path.resolve(__dirname, '../docs/librelinkup-lab.env.example'), 'utf8'));
+  const hosts = { EU2: 'api-eu2.libreview.io', EU: 'api-eu.libreview.io', US: 'api-us.libreview.io',
+    CA: 'api-ca.libreview.io', AU: 'api-au.libreview.io', AP: 'api-ap.libreview.io', AE: 'api-ae.libreview.io',
+    LA: 'api-la.libreview.io', RU: 'api.libreview.ru', JP: 'api-jp.libreview.io', CN: 'api-cn.myfreestyle.cn',
+    DE: 'api-de.libreview.io', FR: 'api-fr.libreview.io' };
+  assert.deepEqual(accounts.map(a => a.region).sort(), Object.keys(hosts).sort());
+  assert.equal(new Set(accounts.map(a => a.port)).size, 13);
+  assert.deepEqual(accounts.map(a => a.port), Array.from({ length: 13 }, (_, i) => 1350 + i));
+  assert.ok(accounts.every(a => a.port !== 1369));
+  for (const a of accounts) {
+    assert.equal(a.endpoint, 'https://' + hosts[a.region]);
+    assert.equal(sourceConfig({ ...a, username: 'synthetic', password: 'synthetic' }).baseURL, a.endpoint);
+  }
+  assert.throws(() => accountsFrom('LLU_TEST_ACCOUNTS=' + Array.from({ length: 14 }, (_, i) => 'account' + i).join(',')), /TOO_MANY_ACCOUNTS/);
+});
+
 test('lab env uses explicit aliases and never activates commented credentials', () => {
   const accounts = accountsFrom('LLU_TEST_ACCOUNTS=uk,us\n# LLU_UK_USERNAME=private\nLLU_US_REGION=US\nLLU_US_USERNAME="test#user"\nLLU_US_PASSWORD="with # and ="\n');
   assert.equal(accounts[0].username, undefined);

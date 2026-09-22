@@ -58,7 +58,8 @@ spaces or `#`; comments remain comments. A partially configured account fails.
 
 ### Account settings
 
-`LLU_TEST_ACCOUNTS` lists neutral aliases, initially `uk,eu,us,ca,au,ap`. Set these
+`LLU_TEST_ACCOUNTS` lists neutral aliases, initially
+`uk,eu,us,ca,au,ap,ae,la,ru,jp,cn,de,fr`. Set these
 fields for each account (`UK` below is the uppercase alias):
 
 | Setting | Meaning |
@@ -76,11 +77,40 @@ Add further aliases and corresponding fields for other regions or a second patie
 Use a new alias for a different patient. The lab binds each database to a hashed
 account/patient identity and refuses to blend another patient's records into it.
 Account aliases must be lowercase letters/digits, start with a letter and have no
-more than 16 characters. `fixture`, `mongo` and `runner` are reserved. Up to 12
+more than 16 characters. `fixture`, `mongo` and `runner` are reserved. Up to 13
 aliases are supported.
 
-The source's own region redirects are honoured and the resolved hostname is
-reported. The lab makes one login/connections/graph sequence per selected account,
+### Regional endpoints
+
+Each explicit `LLU_<ALIAS>_REGION` selects the corresponding built-in endpoint.
+The template covers all 13 endpoints listed by the public
+[nightscout-librelink-up project](https://github.com/timoschlueter/nightscout-librelink-up/blob/main/src/constants/llu-api-endpoints.ts).
+
+| Region | Starting endpoint |
+| --- | --- |
+| EU2 (UK/GB aliases) | `https://api-eu2.libreview.io` |
+| EU | `https://api-eu.libreview.io` |
+| US | `https://api-us.libreview.io` |
+| CA | `https://api-ca.libreview.io` |
+| AU | `https://api-au.libreview.io` |
+| AP | `https://api-ap.libreview.io` |
+| AE | `https://api-ae.libreview.io` |
+| LA | `https://api-la.libreview.io` |
+| RU | `https://api.libreview.ru` |
+| JP | `https://api-jp.libreview.io` |
+| CN | `https://api-cn.myfreestyle.cn` |
+| DE | `https://api-de.libreview.io` |
+| FR | `https://api-fr.libreview.io` |
+
+Timezone is only an account-selection hint. Berlin and Paris default to EU when
+no region is specified; the DE and FR slots explicitly select their own endpoints.
+An account working in a production deployment does not prove its regional host.
+The source's own region redirects are honoured. Reports include `requestedHost`,
+`resolvedHost` and `regionRedirected`; a redirected login validates that redirect
+path, not a direct login to the originally requested region. The `status` command
+also shows each account's starting endpoint without making a login request.
+
+The lab makes one login/connections/graph sequence per selected account,
 with no automatic retry loop or terms acceptance. Accept required terms manually
 in the official app before rerunning. The test does not discover or print patient
 IDs: obtain the desired ID privately if patient selection is required.
@@ -95,6 +125,13 @@ IDs: obtain the desired ID privately if patient selection is required.
 | ca | http://127.0.0.1:1353 |
 | au | http://127.0.0.1:1354 |
 | ap | http://127.0.0.1:1355 |
+| ae | http://127.0.0.1:1356 |
+| la | http://127.0.0.1:1357 |
+| ru | http://127.0.0.1:1358 |
+| jp | http://127.0.0.1:1359 |
+| cn | http://127.0.0.1:1360 |
+| de | http://127.0.0.1:1361 |
+| fr | http://127.0.0.1:1362 |
 | synthetic demo | http://127.0.0.1:1369 |
 
 Ports follow alias order. Re-run `up` after changing settings. Each account has a

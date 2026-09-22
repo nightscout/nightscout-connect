@@ -12,7 +12,7 @@ function accountsFrom(text) {
   const env = parseEnv(text);
   const ids = (env.LLU_TEST_ACCOUNTS || '').split(',').map(x => x.trim());
   check(ids.length > 0 && ids.every(id => /^[a-z][a-z0-9]{0,15}$/.test(id) && !['fixture', 'mongo', 'runner'].includes(id)), 'INVALID_ACCOUNT_ALIASES');
-  check(new Set(ids).size === ids.length && ids.length <= 12, 'DUPLICATE_OR_TOO_MANY_ACCOUNTS');
+  check(new Set(ids).size === ids.length && ids.length <= 13, 'DUPLICATE_OR_TOO_MANY_ACCOUNTS');
   return ids.map((id, index) => {
     const get = key => env[`LLU_${id.toUpperCase()}_${key}`];
     const units = get('UNITS') || 'mmol';
@@ -24,7 +24,7 @@ function accountsFrom(text) {
     const validation = source.validate({ linkUpUsername: get('USERNAME') || 'placeholder',
       linkUpPassword: get('PASSWORD') || 'placeholder', linkUpRegion: region, connectTimezone: timezone });
     check(validation.ok, 'INVALID_REGION_OR_TIMEZONE');
-    return { id, port: 1350 + index, units, maxAge, region, timezone,
+    return { id, port: 1350 + index, units, maxAge, region, timezone, endpoint: validation.config.baseURL,
       username: get('USERNAME'), password: get('PASSWORD'), patientId: get('PATIENT_ID'),
       sensorInfo: get('SENSOR_INFO') !== 'false', stealthTls: get('STEALTH_TLS') === 'true' };
   });
