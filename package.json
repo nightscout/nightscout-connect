@@ -1,6 +1,6 @@
 {
   "name": "nightscout-connect",
-  "version": "0.0.14",
+  "version": "0.1.0",
   "description": "Connect common cloud platforms to Nightscout.",
   "main": "index.js",
   "directories": {
