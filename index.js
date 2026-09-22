@@ -11,31 +11,29 @@ var axios = require('axios');
 var builder = require('./lib/builder');
 var sources = require('./lib/sources');
 var outputs = require('./lib/outputs');
-var logScrub = require('./lib/log-scrub');
+var createLogger = require('./lib/logging');
 
 
 function internalLoop (input, output) {
 }
 
 function manage (env, ctx) {
+  var connect = env.extendedSettings.connect;
+  var log = createLogger(connect && connect.debug !== undefined
+    ? connect.debug : env.debug && env.debug.logging);
 
   // source
   // output
   // env.extendedSettings.connect.source
   var spec = { kind: 'disabled' };
   if (!env.extendedSettings.connect) {
-    console.log("Skipping disabled nightscout-connect");
+    log.debug('Skipping disabled connector');
     return;
   }
   if (!env.extendedSettings.connect.source) {
-    console.log("Skipping disabled nightscout-connect, no source driver spec");
+    log.debug('Skipping connector without a source');
     return;
   }
-
-  // Redact credentials and personal data from every console write. In plugin
-  // mode this console is the host's, so it is only wrapped once a source is
-  // configured. See lib/log-scrub.js.
-  logScrub.install( );
 
   spec.kind = env.extendedSettings.connect.source;
 
@@ -47,14 +45,15 @@ function manage (env, ctx) {
       ctx.bootErrors.push(...validated.errors);
   }
 
-  console.log("nightscout-connect input configured");
+  log.debug('Input configured');
 
   if (!validated.ok) {
-    console.log("Invalid configuration, disabling nightscout-connect");
+    log.error('Invalid configuration, disabling connector');
     return;
   }
-  var internal = { name: 'internal' };
+  var internal = { name: 'internal', logger: log };
   var output = outputs(internal)(internal, ctx);
+  log.debug('Internal output configured');
   var actor;
   var stopped = false;
   function handle () { return actor; }
@@ -74,8 +73,9 @@ function manage (env, ctx) {
     return Promise.resolve(handle);
   };
   try {
-    var make = builder({output});
-    var impl = driver(validated.config, axios);
+    // output must be passed into builder, before generate_driver is called.
+    var make = builder({ output, logger: log });
+    var impl = driver(validated.config, axios, log);
     impl.generate_driver(make);
     actor = interpret(make());
     ctx.bus.once('data-processed', handle.run);
