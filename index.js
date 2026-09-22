@@ -11,6 +11,7 @@ var axios = require('axios');
 var builder = require('./lib/builder');
 var sources = require('./lib/sources');
 var outputs = require('./lib/outputs');
+var logScrub = require('./lib/log-scrub');
 
 
 function internalLoop (input, output) {
@@ -30,6 +31,11 @@ function manage (env, ctx) {
     console.log("Skipping disabled nightscout-connect, no source driver spec");
     return;
   }
+
+  // Redact credentials and personal data from every console write. In plugin
+  // mode this console is the host's, so it is only wrapped once a source is
+  // configured. See lib/log-scrub.js.
+  logScrub.install( );
 
   spec.kind = env.extendedSettings.connect.source;
 
