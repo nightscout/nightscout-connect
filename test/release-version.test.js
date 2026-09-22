@@ -8,22 +8,23 @@ test('a full release must match package.json exactly', () => {
   assert.throws(() => plan('v0.0.14', '0.1.0'), /must match exactly/);
 });
 
-test('a prerelease on dev needs no bump commit', () => {
-  // dev still declares the last release line; the tag leads it
-  assert.deepEqual(plan('v0.1.0-dev.1', '0.0.14'), { version: '0.1.0-dev.1', distTag: 'next', stamp: true });
-  // dev declares the upcoming version; the tag is a prerelease of it
+test('a prerelease of the version package.json declares needs no bump commit', () => {
+  assert.deepEqual(plan('v0.1.0-dev.1', '0.1.0'), { version: '0.1.0-dev.1', distTag: 'next', stamp: true });
   assert.deepEqual(plan('v0.1.0-dev.2', '0.1.0'), { version: '0.1.0-dev.2', distTag: 'next', stamp: true });
   assert.deepEqual(plan('v0.1.0-rc.1', '0.1.0'), { version: '0.1.0-rc.1', distTag: 'next', stamp: true });
 });
 
-test('a prerelease that package.json already declares is not stamped', () => {
-  assert.deepEqual(plan('v0.1.0-dev.1', '0.1.0-dev.1'), { version: '0.1.0-dev.1', distTag: 'next', stamp: false });
+test('a prerelease of any other version is refused', () => {
+  // dev still declares 0.0.14: a 0.1.0 prerelease needs package.json to say 0.1.0 first
+  assert.throws(() => plan('v0.1.0-dev.1', '0.0.14'), /not a prerelease of package.json version 0.0.14/);
+  // dev declares 0.1.0: neither an older nor a newer line can be prereleased from it
+  assert.throws(() => plan('v0.0.16-dev.1', '0.1.0'), /not a prerelease of package.json version 0.1.0/);
+  assert.throws(() => plan('v0.2.0-dev.1', '0.1.0'), /not a prerelease of package.json version 0.1.0/);
+  assert.throws(() => plan('v0.1.1-dev.1', '0.1.0'), /not a prerelease of package.json version 0.1.0/);
 });
 
-test('a prerelease cannot be published for a line that has moved on', () => {
-  assert.throws(() => plan('v0.0.14-dev.1', '0.1.0'), /older than package.json/);
-  assert.throws(() => plan('v0.1.0-dev.1', '0.1.1'), /older than package.json/);
-  assert.throws(() => plan('v0.9.0-dev.1', '1.0.0'), /older than package.json/);
+test('a prerelease that package.json already declares is not stamped', () => {
+  assert.deepEqual(plan('v0.1.0-dev.1', '0.1.0-dev.1'), { version: '0.1.0-dev.1', distTag: 'next', stamp: false });
 });
 
 test('only well-formed version tags are accepted', () => {
@@ -38,7 +39,9 @@ test('nothing is published that would sort at or below npm latest', () => {
   assert.throws(() => plan('v0.0.14-dev.1', '0.0.14', '0.0.14'), /must lead the latest release/);
   assert.throws(() => plan('v0.0.13', '0.0.13', '0.0.14'), /move latest backwards/);
   assert.throws(() => plan('v0.0.14', '0.0.14', '0.0.14'), /move latest backwards/);
-  assert.deepEqual(plan('v0.1.0-dev.1', '0.0.14', '0.0.12'), { version: '0.1.0-dev.1', distTag: 'next', stamp: true });
+  assert.deepEqual(plan('v0.1.0-dev.1', '0.1.0', '0.0.12'), { version: '0.1.0-dev.1', distTag: 'next', stamp: true });
+  // 0.1.0 already released and package.json not moved on: no more 0.1.0 prereleases
+  assert.throws(() => plan('v0.1.0-dev.3', '0.1.0', '0.1.0'), /must lead the latest release/);
   assert.deepEqual(plan('v0.1.0', '0.1.0', '0.0.12'), { version: '0.1.0', distTag: 'latest', stamp: false });
   // never published: no latest to compare against
   assert.deepEqual(plan('v0.1.0', '0.1.0', ''), { version: '0.1.0', distTag: 'latest', stamp: false });

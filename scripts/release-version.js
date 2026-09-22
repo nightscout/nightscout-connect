@@ -5,11 +5,12 @@
 // A full release (v1.2.3) must match package.json exactly, so what is in git
 // is what is on npm.
 //
-// A prerelease (v1.2.3-dev.4) may be tagged on dev without a version-bump
-// commit: the workflow stamps the tag's version into package.json before
-// testing and publishing. Its base version (1.2.3) must be package.json's
-// version or later, so a prerelease can lead the declared version but can
-// never be published for a line that has already moved on.
+// A prerelease (v1.2.3-dev.4) is a prerelease of the version package.json
+// declares: its base (1.2.3) must equal package.json's version, so dev
+// declares the line being worked on and only that line's prereleases can be
+// tagged. npm publishes whatever version package.json holds, so the workflow
+// sets the tag's version in its own checkout before testing and publishing;
+// nothing is committed, and the provenance attestation names the commit.
 //
 // Either kind must also be newer than npm's current `latest`, when there is
 // one: a full release lower than it would move `latest` backwards, and a
@@ -59,8 +60,9 @@ function plan (tag, packageVersion, latestVersion) {
     return { version, distTag: 'latest', stamp: false };
   }
 
-  if (compareCore(tagged.core, declared.core) < 0) {
-    throw new Error(`prerelease ${tag} is older than package.json version ${packageVersion}; its base version must be ${declared.core.join('.')} or later`);
+  if (compareCore(tagged.core, declared.core) !== 0) {
+    throw new Error(`prerelease ${tag} is not a prerelease of package.json version ${packageVersion}; `
+      + `tag v${declared.core.join('.')}-<id>, or change package.json's version first`);
   }
   return { version, distTag: 'next', stamp: version !== packageVersion };
 }

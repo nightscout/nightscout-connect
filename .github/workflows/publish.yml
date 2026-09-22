@@ -1,9 +1,11 @@
 name: Publish to npm
 
 # Pushing a v* tag is the whole release. A full release (v1.2.3) must match
-# package.json; a prerelease (v1.2.3-dev.4) can be tagged on dev as it stands,
-# and its version is stamped into package.json here. scripts/release-version.js
-# decides which, and refuses anything that would sort at or below npm's latest.
+# package.json exactly; a prerelease (v1.2.3-dev.4) must be a prerelease of
+# the version package.json declares, and this workflow sets that version in
+# its own checkout before testing and publishing (nothing is committed).
+# scripts/release-version.js decides, and refuses anything at or below npm's
+# latest.
 #
 # npm authenticates this workflow
 # through OIDC (trusted publishing), so no npm token is stored anywhere,
