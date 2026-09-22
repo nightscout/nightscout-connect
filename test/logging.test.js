@@ -212,3 +212,12 @@ for (const debug of [false, true]) {
     safe(calls);
   });
 }
+
+test('errors that carry their status directly still report it', t => {
+  const calls = capture(t);
+  const error = new Error(secret);
+  error.status = 429; // LibreLinkUp's apiError sets status on the error itself
+  createLogger(false).error('LibreLinkUp request failed', error);
+  assert.match(calls.at(-1).text, /LibreLinkUp request failed \(HTTP 429\)/);
+  safe(calls);
+});
