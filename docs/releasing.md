@@ -1,36 +1,79 @@
 # Releasing nightscout-connect
 
-A release is a version tag. Pushing `vX.Y.Z` runs
-[`publish.yml`](../.github/workflows/publish.yml), which checks the tag,
+A release is a version tag. Pushing a `v*` tag runs
+[`publish.yml`](../.github/workflows/publish.yml), which decides what the tag
+publishes ([`scripts/release-version.js`](../scripts/release-version.js)),
 runs the tests, waits for approval on the `npm-publish` environment, and
 publishes to npm with a provenance attestation. No npm token exists for
 this package; npm trusts the workflow directly.
 
-## Cutting a release
+There are two kinds of tag.
 
-1. On `dev` (or `main`), set `version` in `package.json` and
-   `package-lock.json` (`npm version X.Y.Z --no-git-tag-version`), commit,
-   and push the branch.
-2. Tag that commit and push the tag:
+`package.json` on `dev` declares the version being worked on, for example
+`0.1.0`. That one version is what both kinds of tag are measured against:
+
+| | prerelease | full release |
+|---|---|---|
+| tag, when `package.json` says `0.1.0` | `v0.1.0-dev.1`, `v0.1.0-rc.1`, ... | `v0.1.0` |
+| refused, when `package.json` says `0.1.0` | `v0.0.16-dev.1`, `v0.1.1-dev.1`, `v0.2.0-dev.1` | anything but `v0.1.0` |
+| commit | `dev` as it stands | `dev` as it stands |
+| npm dist-tag | `next` | `latest` |
+| who gets it | only people who ask for it: `nightscout-connect@next` or an exact pin | `npm install nightscout-connect` |
+
+npm publishes whatever version `package.json` holds, so for a prerelease the
+workflow sets `0.1.0-dev.1` in its own checkout before testing and
+publishing. Nothing is committed; the provenance attestation records the exact
+commit the package was built from.
+
+## Starting a new version
+
+Open a pull request into `dev` that sets the next version
+(`npm version 0.2.0 --no-git-tag-version` updates `package.json` and
+`package-lock.json`), and merge it. From then on, `dev` can be tagged
+`v0.2.0-dev.N` for prereleases and `v0.2.0` for the release. Do this right after
+a full release, so `dev` never declares a version that is already published.
+
+## A prerelease from dev
+
+```sh
+git fetch origin
+git tag -a v0.1.0-dev.1 -m "nightscout-connect 0.1.0-dev.1" origin/dev
+git push origin v0.1.0-dev.1
+```
+
+Then approve the `publish` job in the Actions tab. For the next one, tag
+`v0.1.0-dev.2`, and so on.
+
+## A full release
+
+1. Make sure `package.json` on `dev` says the version you are releasing.
+2. Tag `dev` and push the tag:
 
    ```sh
-   git tag -a vX.Y.Z -m "nightscout-connect X.Y.Z"
-   git push origin vX.Y.Z
+   git fetch origin
+   git tag -a v0.1.0 -m "nightscout-connect 0.1.0" origin/dev
+   git push origin v0.1.0
    ```
 
 3. Approve the `publish` job in the Actions tab.
+4. Merge `dev` into `main`.
+5. Start the next version (above).
 
-The workflow refuses to publish when:
+## What the workflow refuses
 
-- the tag is not `v` followed by the `package.json` version;
-- the tagged commit is not on `dev` or `main`;
-- that version is already on npm (npm never allows a version to be reused,
-  even after unpublishing);
-- the tests fail.
+- a tag that is not `vMAJOR.MINOR.PATCH` or `vMAJOR.MINOR.PATCH-PRERELEASE`
+  (build metadata such as `+build.1` is not accepted);
+- a full release whose tag does not match the `package.json` version;
+- a prerelease that is not a prerelease of the `package.json` version;
+- any version at or below npm's current `latest`: a full release would move
+  `latest` backwards, and a prerelease would sort below what users have;
+- a tagged commit that is not on `dev` or `main`;
+- a version already on npm (npm never allows a version to be reused, even
+  after unpublishing; a bad `dev.1` is followed by `dev.2`);
+- failing tests.
 
-A version with a pre-release suffix, such as `0.0.15-dev.1`, is published
-under the `next` dist-tag, so `npm install nightscout-connect` keeps
-resolving to the last full release. Anything else becomes `latest`.
+A refused tag publishes nothing. Delete it (`git push origin :refs/tags/vX`)
+and push a corrected one.
 
 ## One-time setup
 
