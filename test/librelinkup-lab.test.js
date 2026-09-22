@@ -45,6 +45,7 @@ test('lab env uses explicit aliases and never activates commented credentials', 
   for (const aliases of ['uk,uk', 'fixture', 'mongo', 'runner', '../live', 'a-b', ''])
     assert.throws(() => accountsFrom('LLU_TEST_ACCOUNTS=' + aliases));
   assert.throws(() => accountsFrom('LLU_TEST_ACCOUNTS=uk\nLLU_UK_REGION=unknown'), /INVALID_REGION/);
+  assert.throws(() => accountsFrom('LLU_TEST_ACCOUNTS=uk\nLLU_UK_TIMEZONE=Invalid/Zone'), /INVALID_REGION_OR_TIMEZONE/);
   assert.throws(() => accountsFrom('LLU_TEST_ACCOUNTS=uk\nLLU_UK_MAX_AGE_MINUTES=-1'), /INVALID_MAX_AGE/);
 });
 

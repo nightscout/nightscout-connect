@@ -106,8 +106,10 @@ The template covers all 13 endpoints listed by the public
 | DE | `https://api-de.libreview.io` |
 | FR | `https://api-fr.libreview.io` |
 
-Timezone is only an account-selection hint. Berlin and Paris default to EU when
-no region is specified; the DE and FR slots explicitly select their own endpoints.
+Timezone is only a manual account-selection hint and a local display setting.
+It does not select the connector's endpoint: absent an explicit region/server,
+LibreLinkUp retains its EU default regardless of timezone. The DE and FR slots
+explicitly select their own endpoints.
 An account working in a production deployment does not prove its regional host.
 The source's own region redirects are honoured. Reports include `requestedHost`,
 `resolvedHost` and `regionRedirected`; a redirected login validates that redirect
@@ -186,7 +188,7 @@ has only one connection. This source validates an explicit ID strictly. Correct
 the local selector only after confirming the intended connection; the lab still
 refuses to choose implicitly from multiple patients.
 
-If a timezone-inferred endpoint rejects a login that works in production, check
+If an explicitly selected regional endpoint rejects a login that works in production, check
 the production starting host. A separate diagnostic run using that host may
 validate the account, but retain the failed regional result and do not count it
 as successful coverage of the originally requested endpoint.

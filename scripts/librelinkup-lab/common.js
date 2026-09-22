@@ -35,6 +35,9 @@ function accountsFrom(text) {
     check(Number.isFinite(maxAge) && maxAge >= 1 && maxAge <= 1440, 'INVALID_MAX_AGE');
     const region = get('REGION') || 'EU';
     const timezone = get('TIMEZONE') || 'UTC';
+    // The lab uses this for Nightscout's display timezone, not source routing.
+    try { new Intl.DateTimeFormat('en', { timeZone: timezone }); }
+    catch (_) { check(false, 'INVALID_REGION_OR_TIMEZONE'); }
     const validation = source.validate({ linkUpUsername: get('USERNAME') || 'placeholder',
       linkUpPassword: get('PASSWORD') || 'placeholder', linkUpRegion: region, connectTimezone: timezone });
     check(validation.ok, 'INVALID_REGION_OR_TIMEZONE');

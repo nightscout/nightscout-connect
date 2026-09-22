@@ -11,21 +11,47 @@ const transport = handler => ({ create: defaults => ({
   get: (path, options) => handler({ path, options, defaults })
 }) });
 
-test('configured timezone selects an initial region without overriding explicit settings', () => {
-  for (const [timezone, region] of [
-    ['Europe/London', 'EU2'], ['America/New_York', 'US'], ['America/Toronto', 'CA'],
-    ['Europe/Dublin', 'EU'], ['Asia/Tokyo', 'JP'], ['Asia/Shanghai', 'CN'],
-    ['Europe/Moscow', 'RU'], ['Asia/Dubai', 'AE'], ['Australia/Sydney', 'AU'],
-    ['Asia/Singapore', 'AP'], ['America/Sao_Paulo', 'LA'], ['UTC', 'EU']
-  ]) {
-    const result = sourceFactory.validate({ ...common, timezone });
-    assert.equal(result.ok, true);
-    assert.equal(result.config.linkUpRegion, region);
+test('shared timezone settings preserve the legacy LibreLinkUp EU starting endpoint', () => {
+  for (const key of ['timezone', 'connectTimezone']) {
+    for (const timezone of [undefined, '', 'Asia/Shanghai', 'Asia/Urumqi',
+      'Europe/London', 'America/New_York', 'America/Toronto', 'Asia/Tokyo',
+      'Europe/Moscow', 'Asia/Dubai', 'Australia/Sydney', 'Asia/Singapore',
+      'America/Sao_Paulo', 'UTC', 'Invalid/Zone']) {
+      const result = sourceFactory.validate({ ...common, [key]: timezone });
+      assert.equal(result.ok, true, `${key}=${timezone} must not disable the source`);
+      assert.equal(result.config.baseURL, 'https://api-eu.libreview.io', `${key}=${timezone}`);
+    }
   }
-  assert.equal(sourceFactory.validate({ ...common, connectTimezone: 'Europe/London' }).config.linkUpRegion, 'EU2');
-  assert.equal(sourceFactory.validate({ ...common, timezone: 'Europe/London', linkUpRegion: 'US' }).config.linkUpRegion, 'US');
-  assert.equal(sourceFactory.validate({ ...common, timezone: 'Europe/London', linkUpServer: 'custom.example' }).config.baseURL, 'https://custom.example');
-  assert.equal(sourceFactory.validate({ ...common, timezone: 'Invalid/Zone' }).ok, false);
+});
+
+test('legacy region and server overrides work independently of shared timezone settings', () => {
+  for (const timezone of ['Asia/Shanghai', 'Invalid/Zone']) {
+    for (const [region, host] of [['US', 'api-us.libreview.io'], ['CN', 'api-cn.myfreestyle.cn']]) {
+      const result = sourceFactory.validate({ ...common, timezone, linkUpRegion: region });
+      assert.equal(result.ok, true);
+      assert.equal(result.config.baseURL, `https://${host}`);
+    }
+    const server = sourceFactory.validate({ ...common, connectTimezone: timezone,
+      linkUpRegion: 'CN', linkUpServer: 'custom.example' });
+    assert.equal(server.ok, true);
+    assert.equal(server.config.baseURL, 'https://custom.example');
+  }
+});
+
+test('a Shanghai-timezone account without a region keeps its EU to DE login route', async () => {
+  const calls = [];
+  const config = sourceFactory.validate({ ...common, timezone: 'Asia/Shanghai' }).config;
+  const source = sourceFactory(config, transport(async call => {
+    calls.push(call);
+    if (call.defaults.baseURL === 'https://api-eu.libreview.io') {
+      return { data: { status: 0, data: { redirect: true, region: 'DE' } } };
+    }
+    assert.equal(call.defaults.baseURL, 'https://api-de.libreview.io');
+    return { data: { status: 0, data: { authTicket: { token: 'synthetic' }, user: { id: 'synthetic' } } } };
+  }));
+  assert.equal((await source.authFromCredentials()).data.authTicket.token, 'synthetic');
+  assert.deepEqual(calls.map(call => call.defaults.baseURL),
+    ['https://api-eu.libreview.io', 'https://api-de.libreview.io']);
 });
 
 test('TLS option preserves verification, timeout and proxy settings through redirects', async () => {

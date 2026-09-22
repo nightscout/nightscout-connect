@@ -254,11 +254,12 @@ Other available values for `CONNECT_LINK_UP_REGION`:
   * `GB` and `UK` select the same server as `EU2`. Use `EU2` for UK accounts.
 * `CONNECT_LINK_UP_SERVER` may be used to override the region mapping with an
   explicit LibreView API host.
-* If neither region nor server is set, `CONNECT_TIMEZONE` (an IANA name such as
-  `Europe/London` or `America/Toronto`) supplies an initial region hint. The
-  account's region redirect takes precedence. Unmapped timezones fall back to
-  `EU`. This setting does not change glucose timestamps. A redirect logs the
-  explicit region setting to use next time.
+* If neither region nor server is set, the existing `EU` starting endpoint is
+  preserved. `CONNECT_TIMEZONE` does not change LibreLinkUp routing or validate
+  the account's region. Shared timezone-based configuration across data sources
+  is deferred to a separate change, retaining existing regional/server overrides.
+  Abbott's account-region redirects are followed and log the explicit region
+  setting to use next time. Glucose timestamps are unchanged.
 * `CONNECT_LINK_UP_VERSION` and `CONNECT_LINK_UP_PRODUCT` may be used when
   LibreLinkUp requires a newer client version or product identifier. The defaults
   are version `4.16.0` and product `llu.ios`; `llu.android` can be selected

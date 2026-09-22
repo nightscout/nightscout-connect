@@ -5,6 +5,22 @@ PR #73 is ready for review with the limitations below recorded explicitly.
 This report contains aggregate results only; credentials, account identifiers,
 patient data and private response captures are not published.
 
+## Compatibility correction after review
+
+Automatic timezone-to-region selection was removed from this PR after review
+identified that it would send existing Shanghai-timezone accounts from their
+working EU-to-DE route to CN. LibreLinkUp now retains the EU starting endpoint
+when no region/server is configured, irrespective of shared timezone settings.
+Explicit region and server overrides and Abbott's redirects remain supported.
+The shared `CONNECT_TIMEZONE` design is deferred to a separate PR covering
+compatibility across data sources.
+
+Regression tests reproduce the Shanghai-timezone EU-to-DE login, preserve
+explicit CN/US and custom-server settings, and ensure unrelated timezone values
+cannot disable LibreLinkUp. The live results below describe the earlier tested
+implementation; these routing corrections are additionally verified synthetically.
+The full local suite passes **164 tests** after this correction.
+
 ## Live glucose and Nightscout validation
 
 Thirteen real accounts were exercised against Abbott's service and a local,
