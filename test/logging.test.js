@@ -91,23 +91,30 @@ for (const debug of [false, true]) {
     const written = {};
     const ctx = { bus };
     for (const kind of ['entries', 'treatments', 'devicestatus', 'profile']) {
-      ctx[kind] = { create(items, cb) { written[kind] = items; cb(null, items); setImmediate(() => bus.emit('data-processed', sbx)); } };
+      ctx[kind] = {
+        create(items, cb) { written[kind] = items; cb(null, items); setImmediate(() => bus.emit('data-processed', sbx)); },
+        // dev's internal output reads what is stored to de-duplicate; nothing is stored yet.
+        list(a, b) { (typeof a === 'function' ? a : b)(null, []); }
+      };
     }
     const output = internal({ debug }, ctx);
     try {
-      const gap = output.gap_for();
       bus.emit('data-processed', sbx);
-      assert.equal((await gap).sgvs, sg);
-      const batch = { entries: [sg], treatments: [{ private: secret }], devicestatus: [{ private: secret }], profiles: [{ private: secret }] };
-      assert.equal((await output(batch)).sgvs, sg);
-      for (const kind of ['entries', 'treatments', 'devicestatus']) assert.equal(written[kind], batch[kind]);
-      assert.equal(written.profile, batch.profiles);
+      assert.equal((await output.gap_for()).entries.getTime(), sg.mills);
+      // dev's internal output drops device statuses without a timestamp.
+      const at = new Date(sg.mills).toISOString();
+      const batch = { entries: [sg], treatments: [{ created_at: at, private: secret }],
+        devicestatus: [{ created_at: at, private: secret }], profiles: [{ private: secret }] };
+      assert.equal((await output(batch)).entries.getTime(), sg.mills);
+      for (const kind of ['entries', 'treatments', 'devicestatus']) assert.deepEqual(written[kind], batch[kind]);
+      assert.deepEqual(written.profile, batch.profiles);
       await immediate();
       assert.equal(calls.length > 0, debug);
       safe(calls);
       ctx.entries.create = (items, cb) => cb(failure());
-      await output({ entries: [sg] });
+      await assert.rejects(output({ entries: [sg] }), /Nightscout internal write failed/);
       assert.ok(calls.some(call => call.method === 'error' && call.text.includes('Internal persistence failed')));
+      safe(calls);
     } finally { bus.removeAllListeners(); }
   });
 
@@ -162,8 +169,8 @@ for (const debug of [false, true]) {
     const log = createLogger(debug);
     const libre = require('../lib/sources/librelinkup')({}, {
       create: () => ({
-        post: async () => ({ data: { data: { authTicket: { token: secret } } }, headers: { private: secret } }),
-        get: async () => ({ data: { data: [{ patientId: secret }] }, headers: { private: secret } })
+        post: async () => ({ data: { status: 0, data: { authTicket: { token: secret }, user: { id: secret } } }, headers: { private: secret } }),
+        get: async () => ({ data: { status: 0, data: [{ patientId: secret }] }, headers: { private: secret } })
       })
     }, log);
     const auth = await libre.authFromCredentials();
