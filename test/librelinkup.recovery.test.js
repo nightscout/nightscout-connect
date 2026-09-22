@@ -107,7 +107,14 @@ test('LibreLinkUp configurable retries run sequentially and resume on the next c
     // A late timer callback starts one subsequent frame, without cron overlap.
     clock.increment(600000);
     await settle(clock);
+    // The failed frame backs the next cycle off by the source's configured
+    // 2.5 minutes (equal jitter: 75-150 s). Before BF-34 was fixed, backoff()
+    // discarded that setting and this wait was about 256 ms.
     clock.increment(1000);
+    await settle(clock);
+    assert.equal(calls, 2, 'the next cycle honours the configured backoff');
+    // It is capped at six poll intervals, here six minutes.
+    clock.increment(6 * 60 * 1000);
     await settle(clock);
     assert.equal(calls, 3);
     assert.equal(maximum, 1);
