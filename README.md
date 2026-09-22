@@ -258,17 +258,39 @@ Other available values for `CONNECT_LINK_UP_REGION`:
 Login follows a supported region redirect from LibreLinkUp. If a login requires
 an account action, such as accepting updated terms, sign in to the official
 LibreLinkUp app and complete it there before restarting the connector. The
-connector does not accept terms on your behalf. A `429` response waits for the
-next scheduled cycle rather than making immediate retries.
+connector does not accept terms by default. Set `CONNECT_LINK_UP_AUTO_ACCEPT_TERMS=true`
+only if you want it to accept supported terms (`tou` or `pp`) on your behalf.
+Other account actions still require the official app. Continue steps are capped.
+
+A `429` response waits for the next scheduled cycle rather than making immediate
+retries. Consecutive `429` responses add up to 15 minutes of delay, and a
+`Retry-After` header is respected within that limit. Repeated throttling also
+adds one minute to later polls for 15 minutes. Set
+`CONNECT_LINK_UP_STARTUP_JITTER_MS` (0–300000) and
+`CONNECT_LINK_UP_INTERVAL_JITTER_MS` (0–30000) to spread requests from multiple
+connectors. Both default to zero.
 
 For folks connected to many patients, you can provide the patient ID by setting
 the `CONNECT_LINK_UP_PATIENT_ID` variable.
 
 Optionally, you can override the default 5-minute refresh interval by providing
-`CONNECT_LINK_UP_INTERVAL` as an integer representing minutes.
+`CONNECT_LINK_UP_INTERVAL` as an integer from 1 to 60 representing minutes.
+
+`CONNECT_LINK_UP_PROXY` can be `env` (the default, using standard proxy
+environment variables), `direct` (ignoring them), or an HTTP(S) proxy URL.
+Proxy credentials in the URL are passed to the proxy and should be kept private.
+
+Set `CONNECT_LINK_UP_SENSOR_INFO=true` to add sensor details to glucose entries
+and upload a `Sensor Start` treatment and LibreLinkUp device status. This is off
+by default. The treatment includes the sensor serial number; the device status
+contains hashes of sensor and device IDs. Existing sensor starts and statuses
+are checked on startup so a repeated graph does not create duplicate records.
 
 LibreLinkUp uploads graph readings and the current glucose item to avoid the
-historical graph delay. Nightscout duplicate handling is relied on for overlap.
+historical graph delay. After a gap, it replays the history returned by the graph
+endpoint. That endpoint has no requested date range, so older readings outside
+its returned window cannot be recovered by this connector. Nightscout duplicate
+handling is relied on for overlap.
 
 ### Minimed Carelink
 

@@ -156,6 +156,52 @@ test('LibreLinkUp transform skips malformed readings while retaining valid ones'
   assert.deepEqual(result.entries.map((entry) => entry.sgv), [101]);
 });
 
+test('LibreLinkUp opt-in metadata attributes readings across a sensor change', () => {
+  const startA = Date.parse('2026-09-01T00:00:00Z') / 1000;
+  const startB = Date.parse('2026-09-22T07:00:00Z') / 1000;
+  const validated = linkUpSource.validate({
+    linkUpUsername: 'follower', linkUpPassword: 'secret', linkUpSensorInfo: true
+  });
+  const source = linkUpSource(validated.config, fakeAxios(() => {}));
+  const batch = { data: {
+    activeSensors: [
+      { sensor: { sn: 'SENSOR-A', a: startA } },
+      { sensor: { sn: 'SENSOR-B', a: startB } }
+    ],
+    graphData: [{ FactoryTimestamp: '2026-09-22T06:55:00Z', ValueInMgPerDl: 98 }],
+    connection: {
+      glucoseMeasurement: { FactoryTimestamp: '2026-09-22T07:05:00Z', ValueInMgPerDl: 105 },
+      sensor: { sn: 'SENSOR-B', a: startB, w: 60 },
+      patientDevice: { did: 'device-private', v: '4.16.0', ll: 70, hl: 250 }
+    }
+  } };
+  const result = source.transformGlucose(batch, {});
+  assert.deepEqual(result.entries.map(row => row.sensorInfo.serialNumber), ['SENSOR-A', 'SENSOR-B']);
+  assert.equal(result.treatments.length, 1);
+  assert.equal(result.treatments[0].eventType, 'Sensor Start');
+  assert.equal(result.treatments[0].created_at, new Date(startB * 1000).toISOString());
+  assert.equal(result.devicestatus.length, 1);
+  assert.equal(result.devicestatus[0].librelinkup.sensor.serialHash,
+    crypto.createHash('sha256').update('SENSOR-B').digest('hex'));
+  assert.equal(result.devicestatus[0].librelinkup.patientDevice.deviceIdHash,
+    crypto.createHash('sha256').update('device-private').digest('hex'));
+
+  const cursor = { sensorStart: new Date(startB * 1000), librelinkupStatus: new Date('2026-09-22T07:05:00Z') };
+  const later = source.transformGlucose(batch, cursor);
+  assert.equal(later.treatments.length, 0);
+  assert.equal(later.devicestatus.length, 0);
+});
+
+test('LibreLinkUp sensor metadata is off by default and missing sensor data never blocks glucose', () => {
+  const payload = { data: { graphData: [
+    { FactoryTimestamp: '2026-09-22T08:00:00Z', ValueInMgPerDl: 101 }
+  ] } };
+  const off = linkUpSource({ baseURL: 'https://api-eu.libreview.io' }, fakeAxios(() => {}));
+  assert.equal(off.transformGlucose(payload).entries[0].sensorInfo, undefined);
+  const on = linkUpSource({ baseURL: 'https://api-eu.libreview.io', linkUpSensorInfo: true }, fakeAxios(() => {}));
+  assert.equal(on.transformGlucose(payload).entries[0].sensorInfo.error, 'No sensor matched reading time');
+});
+
 test('LibreLinkUp transform preserves local factory timestamps as UTC wall time', () => {
   const source = linkUpSource({
     linkUpUsername: 'user@example.com',
@@ -217,6 +263,46 @@ test('LibreLinkUp login reports required account action without leaking credenti
     assert.doesNotMatch(error.message, /secret|private-token/);
     return true;
   });
+});
+
+test('LibreLinkUp accepts terms only when explicitly enabled and limits continue steps', async () => {
+  const calls = [];
+  const pending = { status: 4, data: { step: { type: 'tou' }, authTicket: { token: 'private-token' } } };
+  const source = linkUpSource({ linkUpUsername: 'user', linkUpPassword: 'secret',
+    linkUpAutoAcceptTerms: true, baseURL: 'https://api-eu.libreview.io' }, fakeAxios(call => {
+    calls.push(call);
+    if (call.path === '/llu/auth/login') return Promise.resolve({ data: pending });
+    assert.equal(call.path, '/auth/continue/tou');
+    assert.equal(call.options.headers.Authorization, 'Bearer private-token');
+    return Promise.resolve({ data: { status: 0, data: { authTicket: { token: 'new-token' }, user: { id: 'user' } } } });
+  }));
+  assert.equal((await source.authFromCredentials()).data.authTicket.token, 'new-token');
+  assert.equal(calls.length, 2);
+
+  const looping = linkUpSource({ linkUpUsername: 'user', linkUpPassword: 'secret',
+    linkUpAutoAcceptTerms: true, baseURL: 'https://api-eu.libreview.io' },
+    fakeAxios(() => Promise.resolve({ data: pending })));
+  await assert.rejects(looping.authFromCredentials(), /too many terms steps/);
+});
+
+test('LibreLinkUp proxy settings survive region redirects and reject malformed URLs', async () => {
+  const common = { linkUpUsername: 'user', linkUpPassword: 'secret' };
+  assert.equal(linkUpSource.validate({ ...common, linkUpProxy: 'socks5://proxy.test:1080' }).ok, false);
+  assert.equal(linkUpSource.validate({ ...common, linkUpProxy: 'direct' }).ok, true);
+  const validated = linkUpSource.validate({ ...common, linkUpProxy: 'http://name:secret@proxy.test:8080' });
+  assert.equal(validated.ok, true);
+  const calls = [];
+  const source = linkUpSource(validated.config, fakeAxios(call => {
+    calls.push(call);
+    return Promise.resolve({ data: calls.length === 1
+      ? { status: 0, data: { redirect: true, region: 'EU2' } }
+      : { status: 0, data: { authTicket: { token: 'ticket' }, user: { id: 'user' } } } });
+  }));
+  await source.authFromCredentials();
+  assert.deepEqual(calls.map(call => call.defaults.proxy), [
+    { protocol: 'http', host: 'proxy.test', port: 8080, auth: { username: 'name', password: 'secret' } },
+    { protocol: 'http', host: 'proxy.test', port: 8080, auth: { username: 'name', password: 'secret' } }
+  ]);
 });
 
 test('LibreLinkUp rejects a missing user ID before requesting connections', () => {
