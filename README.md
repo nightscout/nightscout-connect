@@ -250,6 +250,11 @@ Other available values for `CONNECT_LINK_UP_REGION`:
   * `GB` and `UK` select the same server as `EU2`. Use `EU2` for UK accounts.
 * `CONNECT_LINK_UP_SERVER` may be used to override the region mapping with an
   explicit LibreView API host.
+* If neither region nor server is set, `CONNECT_TIMEZONE` (an IANA name such as
+  `Europe/London` or `America/Toronto`) supplies an initial region hint. The
+  account's region redirect takes precedence. Unmapped timezones fall back to
+  `EU`. This setting does not change glucose timestamps. A redirect logs the
+  explicit region setting to use next time.
 * `CONNECT_LINK_UP_VERSION` and `CONNECT_LINK_UP_PRODUCT` may be used when
   LibreLinkUp requires a newer client version or product identifier. The defaults
   are version `4.16.0` and product `llu.ios`; `llu.android` can be selected
@@ -263,8 +268,11 @@ only if you want it to accept supported terms (`tou` or `pp`) on your behalf.
 Other account actions still require the official app. Continue steps are capped.
 
 A `429` response waits for the next scheduled cycle rather than making immediate
-retries. Consecutive `429` responses add up to 15 minutes of delay, and a
-`Retry-After` header is respected within that limit. Repeated throttling also
+retries. This applies to login, account connections and graph requests, including
+`status: 429` lockouts inside a successful HTTP response. Consecutive `429`
+responses add up to 15 minutes of delay on top of the polling interval. A
+`Retry-After` header or response lockout duration is respected within that limit.
+Repeated throttling also
 adds one minute to later polls for 15 minutes. Set
 `CONNECT_LINK_UP_STARTUP_JITTER_MS` (0–300000) and
 `CONNECT_LINK_UP_INTERVAL_JITTER_MS` (0–30000) to spread requests from multiple
@@ -275,16 +283,31 @@ the `CONNECT_LINK_UP_PATIENT_ID` variable.
 
 Optionally, you can override the default 5-minute refresh interval by providing
 `CONNECT_LINK_UP_INTERVAL` as an integer from 1 to 60 representing minutes.
+For other request failures, `CONNECT_LINK_UP_MAX_RETRIES` controls retries within
+one cycle (0–5, default 2); `CONNECT_LINK_UP_RETRY_INTERVAL_MS` controls the delay
+between them (1000–900000, default 150000). These settings never enable immediate
+429 retries. `CONNECT_LINK_UP_REQUEST_TIMEOUT_MS` bounds each source request
+(1000–120000, default 30000), allowing polling to recover from stalled requests.
+The polling loop runs one cycle at a time and resumes when a delayed timer runs;
+it does not need the standalone uploader's missed-cron-execution handler.
 
 `CONNECT_LINK_UP_PROXY` can be `env` (the default, using standard proxy
 environment variables), `direct` (ignoring them), or an HTTP(S) proxy URL.
 Proxy credentials in the URL are passed to the proxy and should be kept private.
+`CONNECT_LINK_UP_STEALTH_TLS=true` optionally changes the order of Node's default
+TLS cipher offers, following the related v4 clients. It applies to direct HTTPS
+and proxy tunnels, preserves certificate verification, and requires TLS 1.2 or
+newer. It is off by default and cannot guarantee recovery from an Abbott lockout.
 
 Set `CONNECT_LINK_UP_SENSOR_INFO=true` to add sensor details to glucose entries
 and upload a `Sensor Start` treatment and LibreLinkUp device status. This is off
 by default. The treatment includes the sensor serial number; the device status
 contains hashes of sensor and device IDs. Existing sensor starts and statuses
 are checked on startup so a repeated graph does not create duplicate records.
+Sensor details include activation, age, warmup, state and patch type. Device
+details include app version, upload time, alarm settings and thresholds. For the
+current glucose reading, conflicting connection/active-sensor metadata produces
+a `sensorInfo.error` instead of assigning a sensor; the glucose still uploads.
 
 LibreLinkUp uploads graph readings and the current glucose item to avoid the
 historical graph delay. After a gap, it replays the history returned by the graph
