@@ -1,6 +1,11 @@
 name: Publish to npm
 
-# Pushing a v* tag is the whole release. npm authenticates this workflow
+# Pushing a v* tag is the whole release. A full release (v1.2.3) must match
+# package.json; a prerelease (v1.2.3-dev.4) can be tagged on dev as it stands,
+# and its version is stamped into package.json here. scripts/release-version.js
+# decides which, and refuses anything that would sort at or below npm's latest.
+#
+# npm authenticates this workflow
 # through OIDC (trusted publishing), so no npm token is stored anywhere,
 # and every published version carries a provenance attestation that links
 # it to the tagged commit and this workflow run.
@@ -24,6 +29,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       dist-tag: ${{ steps.version.outputs.dist-tag }}
+      stamp: ${{ steps.version.outputs.stamp }}
     steps:
       # Actions are pinned by commit in this workflow because it can publish.
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -34,20 +40,16 @@ jobs:
         with:
           node-version: '24.20.0'
           cache: npm
-      - name: Tag matches package.json
+      - name: What this tag publishes
         id: version
         run: |
-          version="$(node -p 'require("./package.json").version')"
-          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
-            echo "::error::tag ${GITHUB_REF_NAME} does not match package.json version ${version}"
+          latest="$(npm view nightscout-connect dist-tags.latest 2>/dev/null || true)"
+          if ! plan="$(node scripts/release-version.js "${GITHUB_REF_NAME}" "${latest}")"; then
+            echo "${plan}"
             exit 1
           fi
-          case "${version}" in
-            *-*) dist_tag=next ;;
-            *)   dist_tag=latest ;;
-          esac
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "dist-tag=${dist_tag}" >> "$GITHUB_OUTPUT"
+          echo "${plan}"
+          echo "${plan}" >> "$GITHUB_OUTPUT"
       - name: Tagged commit is on dev or main
         run: |
           for branch in dev main; do
@@ -64,6 +66,9 @@ jobs:
             echo "::error::nightscout-connect@${{ steps.version.outputs.version }} is already on npm; versions cannot be reused"
             exit 1
           fi
+      - name: Stamp the prerelease version
+        if: steps.version.outputs.stamp == 'true'
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --ignore-scripts
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm test
       - name: Package contents
@@ -95,5 +100,8 @@ jobs:
             echo "::error::npm ${npm_version} is older than 11.5.1"
             exit 1
           fi
+      - name: Stamp the prerelease version
+        if: needs.verify.outputs.stamp == 'true'
+        run: npm version "${{ needs.verify.outputs.version }}" --no-git-tag-version --ignore-scripts
       - name: Publish
         run: npm publish --provenance --access public --tag "${{ needs.verify.outputs.dist-tag }}"

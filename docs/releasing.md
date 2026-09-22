@@ -1,36 +1,69 @@
 # Releasing nightscout-connect
 
-A release is a version tag. Pushing `vX.Y.Z` runs
-[`publish.yml`](../.github/workflows/publish.yml), which checks the tag,
+A release is a version tag. Pushing a `v*` tag runs
+[`publish.yml`](../.github/workflows/publish.yml), which decides what the tag
+publishes ([`scripts/release-version.js`](../scripts/release-version.js)),
 runs the tests, waits for approval on the `npm-publish` environment, and
 publishes to npm with a provenance attestation. No npm token exists for
 this package; npm trusts the workflow directly.
 
-## Cutting a release
+There are two kinds of tag.
 
-1. On `dev` (or `main`), set `version` in `package.json` and
-   `package-lock.json` (`npm version X.Y.Z --no-git-tag-version`), commit,
-   and push the branch.
+| | prerelease | full release |
+|---|---|---|
+| tag | `v0.1.0-dev.1`, `v0.1.0-rc.1` | `v0.1.0` |
+| commit | `dev` as it stands | a commit whose `package.json` says `0.1.0` |
+| version bump | none: the workflow stamps the tag's version into `package.json` before testing and publishing | a pull request into `dev` first |
+| npm dist-tag | `next` | `latest` |
+| who gets it | only people who ask for it: `nightscout-connect@next` or an exact pin | `npm install nightscout-connect` |
+
+## A prerelease from dev
+
+```sh
+git fetch origin
+git tag -a v0.1.0-dev.1 -m "nightscout-connect 0.1.0-dev.1" origin/dev
+git push origin v0.1.0-dev.1
+```
+
+Then approve the `publish` job in the Actions tab. For the next one, tag
+`v0.1.0-dev.2`, and so on. The base version (`0.1.0`) must be `package.json`'s
+version or later, and newer than npm's current `latest`.
+
+The published `package.json` differs from the tagged commit in its `version`
+field only; the provenance attestation records the exact commit it was built
+from.
+
+## A full release
+
+1. Open a pull request into `dev` that sets the version
+   (`npm version 0.1.0 --no-git-tag-version` updates `package.json` and
+   `package-lock.json`), and merge it.
 2. Tag that commit and push the tag:
 
    ```sh
-   git tag -a vX.Y.Z -m "nightscout-connect X.Y.Z"
-   git push origin vX.Y.Z
+   git fetch origin
+   git tag -a v0.1.0 -m "nightscout-connect 0.1.0" origin/dev
+   git push origin v0.1.0
    ```
 
 3. Approve the `publish` job in the Actions tab.
+4. Merge `dev` into `main`.
 
-The workflow refuses to publish when:
+## What the workflow refuses
 
-- the tag is not `v` followed by the `package.json` version;
-- the tagged commit is not on `dev` or `main`;
-- that version is already on npm (npm never allows a version to be reused,
-  even after unpublishing);
-- the tests fail.
+- a tag that is not `vMAJOR.MINOR.PATCH` or `vMAJOR.MINOR.PATCH-PRERELEASE`
+  (build metadata such as `+build.1` is not accepted);
+- a full release whose tag does not match the `package.json` version;
+- a prerelease whose base version is older than the `package.json` version;
+- any version at or below npm's current `latest`: a full release would move
+  `latest` backwards, and a prerelease would sort below what users have;
+- a tagged commit that is not on `dev` or `main`;
+- a version already on npm (npm never allows a version to be reused, even
+  after unpublishing; a bad `dev.1` is followed by `dev.2`);
+- failing tests.
 
-A version with a pre-release suffix, such as `0.0.15-dev.1`, is published
-under the `next` dist-tag, so `npm install nightscout-connect` keeps
-resolving to the last full release. Anything else becomes `latest`.
+A refused tag publishes nothing. Delete it (`git push origin :refs/tags/vX`)
+and push a corrected one.
 
 ## One-time setup
 
