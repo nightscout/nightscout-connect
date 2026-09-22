@@ -12,6 +12,7 @@ var builder = require('./lib/builder');
 var sources = require('./lib/sources');
 var outputs = require('./lib/outputs');
 var logScrub = require('./lib/log-scrub');
+var logger = logScrub.createLogger();
 
 
 function internalLoop (input, output) {
@@ -32,16 +33,11 @@ function manage (env, ctx) {
     return;
   }
 
-  // Redact credentials and personal data from every console write. In plugin
-  // mode this console is the host's, so it is only wrapped once a source is
-  // configured. See lib/log-scrub.js.
-  logScrub.install( );
-
   spec.kind = env.extendedSettings.connect.source;
 
   var internal = { name: 'internal' };
   var output = outputs(internal)(internal, ctx);
-  console.log("CONFIGURED OUTPUT", output);
+  logger.log("CONFIGURED OUTPUT");
 
   // var things = internalLoop(input, output);
   // everything known for output
@@ -81,7 +77,7 @@ function manage (env, ctx) {
   ctx.bus.once('data-processed', handle.run);
   ctx.bus.once('tearDown', handle.stop);
   // console.log(things);
-  var actor = interpret(things);
+  var actor = interpret(things, { logger: logger.xstate });
   actor.start( );
   // actor.send({type: 'START'});
 

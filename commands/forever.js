@@ -5,6 +5,7 @@ var axios = require('axios');
 var builder = require('../lib/builder');
 var sources = require('../lib/sources');
 var outputs = require('../lib/outputs');
+var logger = require('../lib/log-scrub').createLogger();
 
 function sidecarLoop (input, output) {
   
@@ -19,7 +20,7 @@ function sidecarLoop (input, output) {
   // variables/config
   var driver = sources(input);
   var _v = driver.validate ? driver.validate(input) : null;
-  if (_v && !_v.ok) console.log("VALIDATION ERRORS", _v.errors.map(function(e){return e.desc;}));
+  if (_v && !_v.ok) logger.log("VALIDATION ERRORS", { count: _v.errors.length });
   var _opts = (_v && _v.ok) ? _v.config : input;
   console.log("DRIVER CONFIGURED", { kind: input.kind });
   var impl = driver(_opts, axios);
@@ -47,7 +48,7 @@ function main (argv) {
   console.log("CONFIGURED INPUT", { kind: input.kind });
 
   var things = sidecarLoop(input, output);
-  var actor = interpret(things);
+  var actor = interpret(things, { logger: logger.xstate });
   actor.start( );
   actor.send({type: 'START'});
   setTimeout(( ) => {

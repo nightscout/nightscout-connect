@@ -21,13 +21,17 @@ test('a site without a connect source keeps its console unwrapped', () => {
   assert.equal(console.__nscLogScrubInstalled, undefined);
 });
 
-test('configuring a source wraps the console', () => {
+test('configuring and stopping a source leaves the host console unchanged', async () => {
   const originalLog = console.log;
   console.log = () => { };
+  const hostLog = console.log;
   try {
-    manage({ extendedSettings: { connect: { source: 'dexcomshare' } } }, { bus: new EventEmitter(), bootErrors: [ ] });
+    const handle = manage({ extendedSettings: { connect: { source: 'dexcomshare' } } }, { bus: new EventEmitter(), bootErrors: [ ] });
+    assert.equal(console.log, hostLog);
+    if (handle) await handle.stop();
   } finally {
     console.log = originalLog;
   }
-  assert.equal(console.__nscLogScrubInstalled, true);
+  assert.equal(console.log, originalLog);
+  assert.equal(console.__nscLogScrubInstalled, undefined);
 });

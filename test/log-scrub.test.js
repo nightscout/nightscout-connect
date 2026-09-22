@@ -1,70 +1,59 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const { createLogger, scrub } = require('../lib/log-scrub');
 
-const scrubber = require('../lib/log-scrub');
-
-function captureConsole ( ) {
-  const lines = [ ];
-  const fake = {
-    log ( ) { lines.push(Array.from(arguments)); },
-    error ( ) { lines.push(Array.from(arguments)); },
-    warn ( ) { lines.push(Array.from(arguments)); },
-    info ( ) { lines.push(Array.from(arguments)); }
-  };
-  scrubber.install(fake);
-  return { fake, lines };
+function capture () {
+  const calls = [];
+  const target = Object.fromEntries(['log', 'error', 'warn', 'info', 'debug'].map(level =>
+    [level, (...args) => calls.push({ level, args })]));
+  const originals = { ...target };
+  return { target, originals, calls, logger: createLogger(target) };
 }
 
-test('redacts credentials and personal data from nested objects', () => {
-  const { fake, lines } = captureConsole( );
-  // shaped like the xstate tick that lib/machines/session.js emits
-  fake.log('DEBUG', { context: { retries: 0 }, event: { type: 'AUTHENTICATED', data: {
-    cookies: 'some-session=abc123; domain=example.com',
-    user: { email: 'someone@example.com', firstName: 'A', dateOfBirth: '1970-01-01' }
-  } } });
-  const flat = JSON.stringify(lines);
-  assert.ok(!flat.includes('abc123'), 'session cookie must not survive');
-  assert.ok(!flat.includes('someone@example.com'), 'email must not survive');
-  assert.ok(!flat.includes('1970-01-01'), 'date of birth must not survive');
-  assert.ok(flat.includes('[redacted]'), 'redaction marker expected');
-  assert.ok(flat.includes('AUTHENTICATED'), 'non-sensitive fields must survive');
-  assert.equal(lines[0][1].context.retries, 0, 'counters must survive');
+test('connector logger never replaces host console methods', () => {
+  const { target, originals, logger } = capture();
+  logger.log('Connect operation', { count: 3 });
+  for (const level of Object.keys(originals)) assert.equal(target[level], originals[level]);
+  assert.equal(target.__nscLogScrubInstalled, undefined);
 });
 
-test('redacts session cookies embedded in plain strings', () => {
-  const { fake, lines } = captureConsole( );
-  fake.log('cookie was some-session=deadbeefcafe; path=/');
-  assert.ok(!JSON.stringify(lines).includes('deadbeefcafe'));
-  assert.ok(JSON.stringify(lines).includes('[redacted]'));
+test('untrusted positional strings, errors, URLs and serialized values do not reach the sink', () => {
+  const { calls, logger } = capture();
+  const secret = 'patient@example.invalid';
+  const error = new Error('https://example.invalid/?token=' + secret);
+  error.config = { headers: { Authorization: secret } };
+  logger.error('Connect request failed', secret, error, 'https://example.invalid/?token=' + secret,
+    JSON.stringify({ profile: { name: secret } }), { count: 2, freeText: secret });
+  assert.doesNotMatch(JSON.stringify(calls), /patient@example|token=|Authorization/);
+  assert.deepEqual(calls[0].args.slice(1, 5), ['[redacted]', '[error]', '[redacted]', '[redacted]']);
+  assert.deepEqual(calls[0].args[5], { count: 2 });
 });
 
-test('leaves ordinary payloads intact', () => {
-  const { fake, lines } = captureConsole( );
-  fake.log('PERSISTED', { entries: 12, treatments: 3, sgv: 154, status: 'ok' });
-  assert.deepEqual(lines[0][1], { entries: 12, treatments: 3, sgv: 154, status: 'ok' });
+test('hostile accessors and proxies cannot break a diagnostic call', () => {
+  const { calls, logger } = capture();
+  const hostile = { count: 1 };
+  Object.defineProperty(hostile, 'status', { enumerable: true, get () { throw Error('secret'); } });
+  const proxy = new Proxy({}, { ownKeys () { throw Error('secret'); } });
+  const prototypeProxy = new Proxy({}, { getPrototypeOf () { throw Error('secret'); } });
+  assert.doesNotThrow(() => logger.warn('Connect diagnostic', hostile, proxy, prototypeProxy));
+  assert.deepEqual(calls[0].args[1], { count: 1, status: '[accessor]' });
+  assert.equal(calls[0].args[2], '[uninspectable]');
+  assert.equal(calls[0].args[3], '[uninspectable]');
 });
 
-test('survives circular references and deep nesting', () => {
-  const { fake, lines } = captureConsole( );
-  const a = { n: 1 }; a.self = a;
-  fake.log('circular', a);
-  assert.equal(lines[0][1].self, '[circular]');
-  let deep = { }; let cur = deep;
-  for (let i = 0; i < 12; i++) { cur.next = { i }; cur = cur.next; }
-  assert.doesNotThrow(() => fake.log('deep', deep));
+test('nested values, circular structures and arrays are bounded', () => {
+  const value = { count: 1, event: { profile: { name: 'Alice' } }, 'patient@example.invalid': 'secret' };
+  value.event.context = value;
+  const result = scrub(value);
+  assert.equal(result.count, 1);
+  assert.deepEqual(result.event.profile, {});
+  assert.equal(result.event.context, '[circular]');
+  assert.doesNotMatch(JSON.stringify(result), /patient@example|Alice/);
+  assert.equal(scrub(new Array(51).fill('secret')), '[array 51]');
 });
 
-test('install is idempotent', () => {
-  const { fake } = captureConsole( );
-  scrubber.install(fake);
-  scrubber.install(fake);
-  fake.log('x', { password: 'p' });
-  assert.ok(true);
-});
-
-test('scrub can be used directly without touching console', () => {
-  const out = scrubber.scrub({ apiSecret: 'shh', nested: { token: 't', keep: 1 } });
-  assert.equal(out.apiSecret, '[redacted]');
-  assert.equal(out.nested.token, '[redacted]');
-  assert.equal(out.nested.keep, 1);
+test('XState logger accepts only a fixed label', () => {
+  const { calls, logger } = capture();
+  logger.xstate('Connect authentication failed', { event: { password: 'secret' } });
+  assert.deepEqual(calls[0].args, ['Connect authentication failed']);
 });
