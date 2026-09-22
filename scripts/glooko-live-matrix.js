@@ -4,6 +4,8 @@
 // Explicitly opted-in integration runner. Patient records stay in memory and
 // in the disposable local database; only aggregate results leave the process.
 const fs = require('node:fs');
+const path = require('node:path');
+const { MARKER } = require('./lab-plugin-completion-marker');
 const { parseEnv } = require('node:util');
 const { EventEmitter } = require('node:events');
 const { spawn } = require('node:child_process');
@@ -87,13 +89,15 @@ async function main() {
         CONNECT_GLOOKO_SKIP_ENTRIES: 'false',
         ENABLE: childEnv.ENABLE + ' connect'
       });
-    server = spawn(process.execPath, [nsRoot + '/lib/server/server.js'], {
+    // lab-plugin-completion.js prints MARKER after each internal write, so
+    // completion does not depend on connector log text or CONNECT_DEBUG.
+    server = spawn(process.execPath, ['--require', path.join(__dirname, 'lab-plugin-completion.js'), nsRoot + '/lib/server/server.js'], {
       cwd: nsRoot,
       env: childEnv,
       stdio: ['ignore', 'pipe', 'pipe']
     });
     server.stdout.on('data', (data) => {
-      if (data.toString().includes('INTERNAL PERSISTENCE COMPLETE')) pluginCompleted = true;
+      if (data.toString().includes(MARKER)) pluginCompleted = true;
     });
     server.stderr.on('data', () => {});
     for (let i = 0; i < 120; i++) {

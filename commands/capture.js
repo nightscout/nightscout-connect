@@ -5,6 +5,7 @@ var axios = require('axios');
 var builder = require('../lib/builder');
 var sources = require('../lib/sources');
 var outputs = require('../lib/outputs');
+var createLogger = require('../lib/logging');
 
 function sidecarLoop (input, output, capture) {
   
@@ -18,7 +19,7 @@ function sidecarLoop (input, output, capture) {
   // select an available input source implementation based on env
   // variables/config
   var driver = sources(input);
-  console.log("INPUT PARAMS", input);
+  console.log("INPUT PARAMS");
   var impl = driver(input, axios);
   // var impl = testImpl.fakeFrame({ }, axios);
 
@@ -26,13 +27,20 @@ function sidecarLoop (input, output, capture) {
 
   var built = make( );
   // console.log("BUILDER OUTPUT", built);
-  console.log("BUILDER OUTPUT", JSON.stringify(built, null, 2));
+  console.log("BUILDER OUTPUT");
   return built;
 
 }
 
+// Anything a machine logs is reduced to a fixed label, printed only with
+// --debug / CONNECT_DEBUG (Andy Low, 6abefe1).
+function stateMachineLogger (argv) {
+  var log = createLogger(argv.debug);
+  return (label) => log.debug(typeof label === 'string' ? label : 'State machine log');
+}
+
 function main (argv) {
-  console.log("STARTING", argv);
+  console.log("STARTING");
   // selected output
   // argv.nightscoutEndpoint;
   // argv.apiSecret;
@@ -40,7 +48,7 @@ function main (argv) {
 
   var endpoint = { name: 'nightscout', url: argv.nightscoutEndpoint, apiSecret: argv.apiSecret };
   var input = { kind: argv.source, url: argv.sourceEndpoint, apiSecret: argv.sourceApiSecret || '' };
-  console.log("CONFIGURED INPUT", input);
+  console.log("CONFIGURED INPUT", { kind: input.kind });
 
 
   // var things = sidecarLoop(input, output, { dir: argv.dir });
@@ -53,7 +61,7 @@ function main (argv) {
     };
   }
 
-  console.log("CONFIGURED OUTPUT", output_config);
+  console.log("CONFIGURED OUTPUT", { name: output_config.name });
   var output = outputs(output_config)(output_config, axios);
   var capture = { dir: argv.dir };
   var make = builder({ output, capture });
@@ -65,15 +73,13 @@ function main (argv) {
   var driver = sources(spec);
   var validated = driver.validate(argv);
   if (validated.errors) {
-    validated.errors.forEach((item) => {
-      console.log(item);
-    });
+    console.log("VALIDATION ERRORS", { count: validated.errors.length });
   }
 
-  console.log("INPUT PARAMS", spec, validated.config);
+  console.log("INPUT PARAMS", { kind: spec.kind });
 
   if (!validated.ok) {
-    console.log("Invalid, disabling nightscout-connect", validated);
+    console.log("Invalid, disabling nightscout-connect");
     process.exit(1);
     return;
   }
@@ -84,7 +90,7 @@ function main (argv) {
 
 
   //console.log(things);
-  var actor = interpret(things);
+  var actor = interpret(things, { logger: stateMachineLogger(argv) });
   actor.start( );
   actor.send({type: 'START'});
   // setTimeout(( ) => { actor.send({type: 'STOP'}); }, 60000 * 1);

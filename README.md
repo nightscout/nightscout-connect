@@ -44,6 +44,18 @@ point.
 * `ENABLE=connect` include the keyword `connect` in the `ENABLE` list.
 * Environment variable prefix `CONNECT_`:
   * `CONNECT_SOURCE` - The name for the source of one of the supported inputs.  one of `nightscout`, `dexcomshare`, etc...
+  * `CONNECT_DEBUG` - Opt in to routine connector diagnostics with `true` or
+    `on`. By default, the Nightscout plugin inherits `env.debug.logging`
+    (`DEBUG_LOGGING` in supporting Nightscout versions), or stays quiet when
+    that setting is absent. An explicit `false` or `off` overrides server
+    debugging. Restart Nightscout after changing the environment setting.
+
+The embedded plugin logs warnings and failures regardless of debugging. Debug
+output contains operation summaries; authentication/session objects, patient
+records, HTTP response bodies and XState context are not dumped. HTTP failures
+retain numeric status codes. Each connector has its own logger; the global
+console is unchanged. CLI output targets and explicit HAR capture are separate
+from this embedded-plugin logging setting.
 
 ## Testing
 
@@ -62,6 +74,25 @@ npm test
 Current coverage includes Dexcom Share auth/session shapes, Nightscout
 source/output token flows, LibreLinkUp regional and timestamp behavior, and
 Glooko regional/device identity plus v2 CGM reading transforms.
+
+Dexcom logging regressions cover valid/invalid startup, authentication, session
+creation and glucose-fetch errors, plus two complete actor lifecycles per case.
+The shared state machines emit fixed event labels instead of context/event dumps.
+Dexcom failures retain their rejected error and log only the operation and numeric
+HTTP status; credentials, account/session identifiers and remote error bodies or
+messages are omitted. The startup tick-payload debug listener is removed.
+MiniMed CareLink logging emits fixed operation labels instead of credentials,
+SSO forms, cookies, bearer tokens, profile/patient records, glucose/pump payloads
+or raw errors. Regression fixtures exercise authentication and consent, patient
+and carepartner sessions, Guardian and pump fetches, refresh, transformation and
+request failures using the real Axios client with an owned adapter. Returned
+authentication/data values and propagated errors remain available to callers.
+The internal Nightscout output also emits fixed labels instead of stored batches
+or glucose/profile bookmarks. An output regression verifies records and
+bookmarks remain available without logging those payloads.
+These tests use owned fixtures, not live vendor accounts. They do not establish
+that other source drivers or CLI capture output are free of sensitive data.
+
 
 
 ## How to use

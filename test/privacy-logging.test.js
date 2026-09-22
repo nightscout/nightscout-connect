@@ -28,10 +28,12 @@ test('plugin configuration logs omit source credentials', () => {
 
 test('internal output logs counts instead of raw medical batches', async () => {
   const ctx = { bus: new EventEmitter() };
-  const output = internalOutput({}, ctx);
+  // The counts are debug output, so turn debugging on to see them.
+  const output = internalOutput({ debug: true }, ctx);
   const originalLog = console.log;
+  const originalDebug = console.debug;
   const logged = [];
-  console.log = (...args) => logged.push(args.map((arg) =>
+  console.log = console.debug = (...args) => logged.push(args.map((arg) =>
     typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' '));
 
   try {
@@ -42,6 +44,7 @@ test('internal output logs counts instead of raw medical batches', async () => {
     });
   } finally {
     console.log = originalLog;
+    console.debug = originalDebug;
   }
 
   assert.doesNotMatch(logged.join('\n'), /private-batch-marker|private-glucose-marker/);
