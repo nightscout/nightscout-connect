@@ -15,18 +15,33 @@ test('internal output preserves records and bookmarks without logging health-dat
     const recorded = {};
     const ctx = {bus};
     for (const collection of ['entries', 'treatments', 'devicestatus', 'profile']) {
-      ctx[collection] = {create(items, callback) {recorded[collection] = items; callback(null, items); if (collection === 'entries') setImmediate(() => bus.emit('data-processed', sbx));}};
+      ctx[collection] = {
+        create(items, callback) {
+          recorded[collection] = items;
+          callback(null, items);
+          if (collection === 'entries') setImmediate(() => bus.emit('data-processed', sbx));
+        },
+        list(...args) {
+          const callback = args.find(arg => typeof arg === 'function');
+          callback(null, []);
+        },
+        remove(params, callback) { callback(null, []); }
+      };
     }
     const output = internal({}, ctx);
     try {
       const gap = output.gap_for();
       bus.emit('data-processed', sbx);
-      assert.equal((await gap).sgvs.private, privateValue);
-      const batch = {entries: [{...sg}], devicestatus: [{created_at: new Date(sg.mills).toISOString(), private: privateValue}]};
+      assert.equal((await gap).entries.getTime(), sg.mills);
+      const batch = {
+        entries: [{...sg, dateString: new Date(sg.mills).toISOString()}],
+        devicestatus: [{created_at: new Date(sg.mills).toISOString(), private: privateValue}]
+      };
       const result = await output(batch);
-      assert.equal(recorded.entries, batch.entries);
-      assert.equal(recorded.devicestatus, batch.devicestatus);
-      assert.equal(result.sgvs.private, privateValue);
+      assert.deepEqual(recorded.entries, batch.entries);
+      assert.deepEqual(recorded.devicestatus, batch.devicestatus);
+      assert.equal(recorded.entries[0].private, privateValue);
+      assert.equal(result.entries.getTime(), sg.mills);
       assert.equal((await output.gap_for()).entries.getTime(), sg.mills);
       assert.ok(!logs.join('\n').includes(privateValue));
     } finally {bus.removeAllListeners();}

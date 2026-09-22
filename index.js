@@ -28,16 +28,16 @@ function internalLoop (input, output) {
 //
 // Nightscout's extended settings coerce a numeric value for us, but a
 // connector can also be constructed directly, so the parse is defensive.
+// lib/machines/cycle.js caps every window at five minutes.
 function jitter_window (value) {
   var ms = Number(value);
   return Number.isFinite(ms) && ms > 0 ? ms : 0;
 }
 
 function manage (env, ctx) {
-  var settings = env.extendedSettings.connect || {};
-  var debug = Object.prototype.hasOwnProperty.call(settings, 'debug')
-    ? settings.debug : env.debug && env.debug.logging;
-  var log = createLogger(debug);
+  var connect = env.extendedSettings.connect;
+  var log = createLogger(connect && connect.debug !== undefined
+    ? connect.debug : env.debug && env.debug.logging);
 
   // source
   // output
@@ -48,7 +48,7 @@ function manage (env, ctx) {
     return;
   }
   if (!env.extendedSettings.connect.source) {
-    log.debug('Skipping disabled connector, no source driver');
+    log.debug('Skipping connector without a source');
     return;
   }
 
@@ -70,6 +70,7 @@ function manage (env, ctx) {
   }
   var internal = { name: 'internal', logger: log };
   var output = outputs(internal)(internal, ctx);
+  log.debug('Internal output configured');
   var actor;
   var stopped = false;
   function handle () { return actor; }
@@ -89,15 +90,18 @@ function manage (env, ctx) {
     return Promise.resolve(handle);
   };
   try {
+    // output must be passed into builder, before generate_driver is called.
     var make = builder({
       output,
       logger: log,
-      start_jitter_ms: jitter_window(settings.startJitterMs),
-      interval_jitter_ms: jitter_window(settings.intervalJitterMs)
+      start_jitter_ms: jitter_window(connect.startJitterMs),
+      interval_jitter_ms: jitter_window(connect.intervalJitterMs)
     });
     var impl = driver(validated.config, axios, log);
     impl.generate_driver(make);
-    actor = interpret(make());
+    // Anything a machine logs goes through the connector logger as a fixed
+    // label, never the value (Andy Low, 6abefe1).
+    actor = interpret(make(), { logger: (label) => log.debug(typeof label === 'string' ? label : 'State machine log') });
     ctx.bus.once('data-processed', handle.run);
     ctx.bus.once('tearDown', handle.stop);
     ctx.bus.once('teardown', handle.stop);
