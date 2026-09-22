@@ -31,6 +31,9 @@ test('LibreLinkUp validation defaults to EU and supports regional or explicit se
   assert.equal(linkUpSource.validate({ ...common, linkUpRegion: 'EU2' }).config.baseURL, 'https://api-eu2.libreview.io');
   assert.equal(linkUpSource.validate({ ...common, linkUpRegion: 'UK' }).config.baseURL, 'https://api-eu2.libreview.io');
   assert.equal(linkUpSource.validate({ ...common, linkUpRegion: 'GB' }).config.baseURL, 'https://api-eu2.libreview.io');
+  assert.equal(linkUpSource.validate({ ...common, linkUpRegion: 'RU' }).config.baseURL, 'https://api.libreview.ru');
+  assert.equal(linkUpSource.validate({ ...common, linkUpRegion: 'CN' }).config.baseURL, 'https://api-cn.myfreestyle.cn');
+  assert.equal(linkUpSource.validate({ ...common, linkUpRegion: 'LA' }).config.baseURL, 'https://api-la.libreview.io');
   assert.equal(linkUpSource.validate({ ...common, linkUpRegion: 'unknown' }).ok, false);
   assert.equal(
     linkUpSource.validate({ ...common, linkUpServer: 'api-custom.libreview.example' }).config.baseURL,
@@ -130,6 +133,27 @@ test('LibreLinkUp transform includes graph and current readings', () => {
     { sgv: 100, dateString: '2025-10-09T08:48:20.000Z', direction: 'Flat' },
     { sgv: 110, dateString: '2025-10-09T08:53:20.000Z', direction: 'FortyFiveUp' }
   ]);
+});
+
+test('LibreLinkUp transform accepts the glucoseMeasurement current-reading shape', () => {
+  const source = linkUpSource({ baseURL: 'https://api-eu.libreview.io' }, fakeAxios(() => {}));
+  const result = source.transformGlucose({ data: {
+    graphData: [{ FactoryTimestamp: '2026-09-22T07:55:00.000Z', ValueInMgPerDl: 101 }],
+    connection: { glucoseMeasurement: {
+      FactoryTimestamp: '2026-09-22T08:00:00.000Z', TrendArrow: 3, ValueInMgPerDl: 105
+    } }
+  } });
+  assert.deepEqual(result.entries.map((entry) => entry.sgv), [101, 105]);
+});
+
+test('LibreLinkUp transform skips malformed readings while retaining valid ones', () => {
+  const source = linkUpSource({ baseURL: 'https://api-eu.libreview.io' }, fakeAxios(() => {}));
+  const result = source.transformGlucose({ data: {
+    graphData: [null, { FactoryTimestamp: 'invalid', ValueInMgPerDl: 99 },
+      { FactoryTimestamp: '2026-09-22T07:55:00.000Z', Value: 101 }],
+    connection: { glucoseItem: { FactoryTimestamp: '2026-09-22T08:00:00.000Z' } }
+  } });
+  assert.deepEqual(result.entries.map((entry) => entry.sgv), [101]);
 });
 
 test('LibreLinkUp transform preserves local factory timestamps as UTC wall time', () => {
@@ -243,6 +267,8 @@ test('LibreLinkUp v4 login, connections and graph produce current glucose', asyn
   assert.equal(validation.config.baseURL, 'https://api-eu2.libreview.io');
   assert.equal(calls[0].defaults.headers.version, '4.16.0');
   assert.equal(calls[0].defaults.headers.product, 'llu.ios');
+  assert.match(calls[0].defaults.headers['User-Agent'], /iPhone/);
+  assert.equal(calls[0].defaults.headers['Content-Type'], 'application/json;charset=UTF-8');
   assert.equal(calls[1].options.headers['Account-Id'], session.accountId);
   assert.equal(calls[2].options.headers['Account-Id'], session.accountId);
   assert.deepEqual(entries.map(({ sgv, dateString }) => ({ sgv, dateString })), [
