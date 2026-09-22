@@ -5,6 +5,10 @@ approach: compare source data independently, exercise both Nightscout write path
 read back MongoDB records, replay the batch, and restart the connector. No v5
 implementation or credentials are included.
 
+See the [22 September 2026 validation results](librelinkup-validation-results.md)
+for completed live-account checks, observed regional redirects and the remaining
+CN and optional sensor-metadata limitations.
+
 ## What CI proves
 
 `npm test` covers regional endpoints and redirects, account-ID headers, patient
