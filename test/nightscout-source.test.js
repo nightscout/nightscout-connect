@@ -91,3 +91,33 @@ test('Nightscout source transforms all collection arrays', () => {
 
   assert.deepEqual(source.transformGlucose(batch), batch);
 });
+
+test('Nightscout source creates its reader subject with a readable role', async () => {
+  // Nightscout reads a subject's roles from the plural `roles` field; a
+  // subject without it only gets AUTH_DEFAULT_ROLES, so on a
+  // `denied` site the reader token cannot read.
+  const posted = [];
+  const source = nightscoutSource({
+    url: 'https://source.example',
+    apiSecret: 'secret'
+  }, fakeAxios((call) => {
+    if (call.path === '/api/v1/verifyauth') {
+      return Promise.resolve({ data: { status: 200, message: { canRead: false } } });
+    }
+    if (call.path === '/api/v2/authorization/subjects' && call.method === 'get') {
+      const data = posted.length ? [{ name: 'nightscout-connect-reader', accessToken: 'reader-token' }] : [];
+      return Promise.resolve({ data });
+    }
+    if (call.path === '/api/v2/authorization/subjects' && call.method === 'post') {
+      posted.push(call.body);
+      return Promise.resolve({ data: call.body });
+    }
+    throw new Error('unexpected call ' + call.method + ' ' + call.path);
+  }));
+
+  assert.equal(await source.authFromCredentials(), 'reader-token');
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].name, 'nightscout-connect-reader');
+  assert.deepEqual(posted[0].roles, [ 'readable' ]);
+  assert.equal(Object.prototype.hasOwnProperty.call(posted[0], 'role'), false);
+});
