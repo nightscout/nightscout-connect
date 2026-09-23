@@ -173,7 +173,7 @@ for (const [name, make] of outputs()) {
     } finally { sink.close(); }
   });
 
-  test(name + ' output: a source edit to a stored profile (same _id) does not overwrite the sink copy', async (t) => {
+  test(name + ' output: a source edit to a stored profile (same _id) is not copied where the sink cannot replace it by _id', async (t) => {
     t.mock.method(console, 'error', () => {});
     const store = profileStore();
     const sink = make(store);
