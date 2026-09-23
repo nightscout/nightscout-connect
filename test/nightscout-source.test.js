@@ -143,7 +143,7 @@ function readerSite ({ subject, readStatus }) {
     if (call.path === '/api/v2/authorization/subjects' && call.method === 'get') {
       return Promise.resolve({ data: [{ _id: 'subject-id', name: 'nightscout-connect-reader', accessToken: 'reader-token-SECRET', ...subject }] });
     }
-    if (call.method === 'get' && /^\/api\/v1\/(entries|treatments|devicestatus|profile)\.json$/.test(call.path)) {
+    if (call.method === 'get' && /^\/api\/v1\/(entries|treatments|devicestatus|profiles?)\.json$/.test(call.path)) {
       return readStatus === 200 ? Promise.resolve({ data: [] }) : reject(readStatus);
     }
     throw new Error('unexpected call ' + call.method + ' ' + call.path);
