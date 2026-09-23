@@ -168,9 +168,11 @@ test('Nightscout source uses bearer token when fetching all collections', async 
       sendJson(res, 200, devicestatus);
       return;
     }
-    if (req.path === '/api/v1/profile.json') {
+    if (req.path === '/api/v1/profiles.json') {
+      // no profile bookmark: the profiles starting in the first window, then the one in effect before it
       assert.equal(req.headers.authorization, expectedAuth);
-      sendJson(res, 200, profiles);
+      assert.match(req.search, /startDate/);
+      sendJson(res, 200, /gte/.test(req.search) ? profiles : []);
       return;
     }
     assert.fail(`unexpected request ${req.method} ${req.path}`);
@@ -193,7 +195,7 @@ test('Nightscout source keeps public-readable sites tokenless', async () => {
       sendJson(res, 200, { status: 200, message: { canRead: true } });
       return;
     }
-    if (req.path === '/api/v1/entries.json' || req.path === '/api/v1/treatments.json' || req.path === '/api/v1/devicestatus.json' || req.path === '/api/v1/profile.json') {
+    if (req.path === '/api/v1/entries.json' || req.path === '/api/v1/treatments.json' || req.path === '/api/v1/devicestatus.json' || req.path === '/api/v1/profiles.json') {
       assert.equal(req.headers.authorization, undefined);
       sendJson(res, 200, []);
       return;
@@ -209,7 +211,8 @@ test('Nightscout source keeps public-readable sites tokenless', async () => {
       '/api/v1/entries.json',
       '/api/v1/treatments.json',
       '/api/v1/devicestatus.json',
-      '/api/v1/profile.json'
+      '/api/v1/profiles.json',
+      '/api/v1/profiles.json'
     ]);
   });
 });
