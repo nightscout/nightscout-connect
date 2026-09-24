@@ -44,8 +44,41 @@ point.
 * `ENABLE=connect` include the keyword `connect` in the `ENABLE` list.
 * Environment variable prefix `CONNECT_`:
   * `CONNECT_SOURCE` - The name for the source of one of the supported inputs.  one of `nightscout`, `dexcomshare`, etc...
+  * `CONNECT_DEBUG` - Opt in to routine connector diagnostics with `true` or
+    `on`. By default, the Nightscout plugin inherits `env.debug.logging`
+    (`DEBUG_LOGGING` in supporting Nightscout versions), or stays quiet when
+    that setting is absent. An explicit `false` or `off` overrides server
+    debugging. Restart Nightscout after changing the environment setting.
+  * `CONNECT_START_JITTER_MS` - Spread the first upstream request over this
+    many milliseconds after start. **Defaults to `0`**, which is the right
+    answer for a self-hosted site: one connector is not a herd, and waiting
+    would only delay your own first reading. Set it when many accounts share
+    one process or one egress address - without it they all reach the vendor
+    in the same instant, on every restart and every deploy, which is the
+    pattern a per-IP rate limiter penalises.
+  * `CONNECT_INTERVAL_JITTER_MS` - Spread the wait between polls over this
+    many milliseconds. Also defaults to `0`. This applies only where the
+    source has declined to align to the data's own schedule, which is the
+    case when the vendor has produced nothing new - so it spreads a pool that
+    would otherwise be retrying in step. When the source does align, its own
+    driver decides the spread and this is not added.
+
+    Both are capped at five minutes (`300000`). LibreLinkUp also has its own
+    `CONNECT_LINK_UP_STARTUP_JITTER_MS` and `CONNECT_LINK_UP_INTERVAL_JITTER_MS`;
+    where both are set, the wider window is used.
+
+The embedded plugin logs warnings and failures regardless of debugging. Debug
+output contains operation summaries; authentication/session objects, patient
+records, HTTP response bodies and XState context are not dumped. HTTP failures
+retain numeric status codes. Each connector has its own logger; the global
+console is unchanged. CLI output targets and explicit HAR capture are separate
+from this embedded-plugin logging setting.
 
 ## Testing
+
+For LibreLinkUp regression coverage and a private local Nightscout installation
+with multiple regional accounts, see the
+[LibreLinkUp test lab guide](docs/librelinkup-live-test-plan.md).
 
 The package has a Node test suite covering connector contracts and fake-server
 Nightscout connectivity paths:
@@ -58,6 +91,25 @@ npm test
 Current coverage includes Dexcom Share auth/session shapes, Nightscout
 source/output token flows, LibreLinkUp regional and timestamp behavior, and
 Glooko regional/device identity plus v2 CGM reading transforms.
+
+Dexcom logging regressions cover valid/invalid startup, authentication, session
+creation and glucose-fetch errors, plus two complete actor lifecycles per case.
+The shared state machines emit fixed event labels instead of context/event dumps.
+Dexcom failures retain their rejected error and log only the operation and numeric
+HTTP status; credentials, account/session identifiers and remote error bodies or
+messages are omitted. The startup tick-payload debug listener is removed.
+MiniMed CareLink logging emits fixed operation labels instead of credentials,
+SSO forms, cookies, bearer tokens, profile/patient records, glucose/pump payloads
+or raw errors. Regression fixtures exercise authentication and consent, patient
+and carepartner sessions, Guardian and pump fetches, refresh, transformation and
+request failures using the real Axios client with an owned adapter. Returned
+authentication/data values and propagated errors remain available to callers.
+The internal Nightscout output also emits fixed labels instead of stored batches
+or glucose/profile bookmarks. An output regression verifies records and
+bookmarks remain available without logging those payloads.
+These tests use owned fixtures, not live vendor accounts. They do not establish
+that other source drivers or CLI capture output are free of sensitive data.
+
 
 
 ## How to use
@@ -182,31 +234,60 @@ To synchronize from Glooko use the following variables.
 * `CONNECT_SOURCE=glooko`
 * `CONNECT_GLOOKO_EMAIL=`
 * `CONNECT_GLOOKO_PASSWORD=`
+* `CONNECT_GLOOKO_TIMEZONE=` optional IANA timezone, for example `Europe/Prague`
 * `CONNECT_GLOOKO_TIMEZONE_OFFSET=0`
 * `CONNECT_GLOOKO_DEVICE_ID=` optional stable device identity
 * `CONNECT_GLOOKO_SERIAL_NUMBER=` optional stable serial number
 * `CONNECT_GLOOKO_WEB_ORIGIN=` optional web origin override for regional/custom hosts
-* `CONNECT_GLOOKO_AUTH_MODE=api` optional auth mode: `api`, `web`, or `auto`
-* `CONNECT_GLOOKO_USE_V3_GRAPH=true` optional v3 graph CGM fallback when v2 returns no readings
+* `CONNECT_GLOOKO_AUTH_MODE=api` optional auth mode: `api`, `v3`, `web`, or `auto`
+* `CONNECT_GLOOKO_DATA_MODE=sync` paginated sync feeds (default); `legacy` retains the earlier fetcher
+* `CONNECT_GLOOKO_LOOKBACK_DAYS=14` glucose history and initial treatment update window, from 1 to 90 days; changing it backfills the requested glucose window in resumable batches (sync mode)
+* `CONNECT_GLOOKO_IMPORT_PROFILE=false` opt in to importing a complete active pump profile; this can change Nightscout's active calculation settings
+* `CONNECT_GLOOKO_EXTENDED_BOLUS_DURATION_UNIT=` leave unset unless the device's duration unit is verified; accepts `seconds` or `minutes`
+* `CONNECT_GLOOKO_SKIP_ENTRIES=false` set true when another connector already supplies CGM
+* `CONNECT_GLOOKO_USE_V3_GRAPH=true` enables the optional graph fallback in **legacy** mode; sync mode manages fallback automatically
 
 By default, `CONNECT_GLOOKO_SERVER` is set to `api.glooko.com` because the
 default value for `CONNECT_GLOOKO_ENV` is `default`.
-* `CONNECT_GLOOKO_ENV` is the word `default` by default.  Other values are
-  `eu`, `development`, `production`, for `api.glooko.work`, and
+* `CONNECT_GLOOKO_ENV` defaults to `default` (`api.glooko.com`). `us` is an
+  alias for `default`; `eu`, `de-fr`, `development`, and `production` select
+  `eu.api.glooko.com`, `de-fr.api.glooko.com`, `api.glooko.work`, and
   `externalapi.glooko.com`, respectively.
-* `CONNECT_GLOOKO_SERVER` the hostname server to use - `api.glooko.com` by `default`, `eu.api.glooko.com` for EU users, or a more specific regional host such as `de-fr.api.glooko.com`.
-* `CONNECT_GLOOKO_TIMEZONE_OFFSET` defines the time zone offset you are at from the UTC time zone, in hours
+* `CONNECT_GLOOKO_SERVER` overrides the hostname selected by `CONNECT_GLOOKO_ENV`.
+* `CONNECT_GLOOKO_TIMEZONE` defines the IANA timezone used to convert Glooko local wall-clock timestamps, for example `Europe/Prague`. This handles daylight saving time based on each timestamp.
+* `CONNECT_GLOOKO_TIMEZONE_OFFSET` defines a fixed offset from UTC in hours and is retained for backward compatibility. `CONNECT_GLOOKO_TIMEZONE` takes precedence when both are configured.
 
 If both, `CONNECT_GLOOKO_SERVER` and `CONNECT_GLOOKO_ENV` are set, only
 `CONNECT_GLOOKO_SERVER` will be used.
 
-Glooko uploads treatments and, when the v2 `cgm/readings` endpoint returns
-readings, CGM entries. Some EU accounts may require newer web-login or v3 graph
-flows. `CONNECT_GLOOKO_AUTH_MODE=web` uses Glooko's web sign-in form with CSRF
-token handling; `auto` tries API login first and falls back to web login on a
-422 response. The optional v3 graph fallback fetches `cgmHigh`, `cgmNormal`,
-and `cgmLow` series when v2 CGM readings are empty, using the same
-authenticated session cookie.
+The default sync mode exhausts Glooko's paginated feeds for CGM, meter readings,
+boluses, delivered/temporary/suspended basal, foods, injection records, notes,
+exercise, pump events and alarms. It supplements those with v3 pump-mode
+intervals and uses v3 graph CGM as a fallback. Clinical timestamps use the
+configured timezone; regional server selection remains explicit and independent
+of timezone. See [mapping, safeguards and limitations](docs/glooko-sync.md).
+Automated-delivery, maximum-delivery and pause intervals are displayed using
+Nightscout's existing duration notes. They are historical annotations, not basal
+rates, live pump status or alerts; they do not change calculated insulin doses.
+
+`CONNECT_GLOOKO_AUTH_MODE=web` uses Glooko's web sign-in form with CSRF
+token handling; `v3` uses the JSON v3 sign-in followed by a session-user lookup.
+The v3 flow is adapted from [Nocturne's Glooko connector](https://github.com/nightscout/nocturne/tree/main/src/Connectors/Nocturne.Connectors.Glooko).
+`auto` tries API login first, then JSON v3 on HTTP 422, then the legacy web form
+only if v3 also returns 422. Authentication failures (401/403) are not retried
+through other login methods. The legacy web form returned 422 for the live
+de-fr sample; `api` and `v3` worked.
+The CGM fallback uses `cgmHigh`, `cgmNormal`, and `cgmLow` with the same
+authenticated session cookie. Authentication, throttling, server errors,
+malformed pages and stalled pagination fail the frame. Optional feeds rejected
+with 404/422 are reported as unavailable, not silently described as successful.
+
+For a read-only check against a real account, see the
+[Glooko integration test plan](docs/glooko-live-test-plan.md). The probe fetches
+and transforms one frame in memory without writing to Nightscout; use an
+ignored `.env.local` file for credentials and never commit it.
+The same test plan describes the explicitly opted-in multi-account runner for
+full REST and plugin writes to a disposable local Nightscout database.
 
 ### Libre Link Up
 To synchronize from Libre Link Up use the following variables.
@@ -217,20 +298,75 @@ To synchronize from Libre Link Up use the following variables.
 By default, `CONNECT_LINK_UP_SERVER` is set to `api-eu.libreview.io` because the
 default value for `CONNECT_LINK_UP_REGION` is `EU`.
 Other available values for `CONNECT_LINK_UP_REGION`:
-  * `US`, `EU`, `EU2`, `DE`, `FR`, `JP`, `AP`, `AU`, `AE`, `CA`
+  * `US`, `EU`, `EU2`, `GB`, `UK`, `DE`, `FR`, `JP`, `AP`, `AU`, `AE`, `CA`, `CN`, `LA`, `RU`
+  * `GB` and `UK` select the same server as `EU2`. Use `EU2` for UK accounts.
 * `CONNECT_LINK_UP_SERVER` may be used to override the region mapping with an
   explicit LibreView API host.
+* If neither region nor server is set, the existing `EU` starting endpoint is
+  preserved. `CONNECT_TIMEZONE` does not change LibreLinkUp routing or validate
+  the account's region. Shared timezone-based configuration across data sources
+  is deferred to a separate change, retaining existing regional/server overrides.
+  Abbott's account-region redirects are followed and log the explicit region
+  setting to use next time. Glucose timestamps are unchanged.
 * `CONNECT_LINK_UP_VERSION` and `CONNECT_LINK_UP_PRODUCT` may be used when
-  LibreLinkUp requires a newer client version or product identifier.
+  LibreLinkUp requires a newer client version or product identifier. The defaults
+  are version `4.16.0` and product `llu.ios`; `llu.android` can be selected
+  explicitly if needed for an account.
+
+Login follows a supported region redirect from LibreLinkUp. If a login requires
+an account action, such as accepting updated terms, sign in to the official
+LibreLinkUp app and complete it there before restarting the connector. The
+connector does not accept terms by default. Set `CONNECT_LINK_UP_AUTO_ACCEPT_TERMS=true`
+only if you want it to accept supported terms (`tou` or `pp`) on your behalf.
+Other account actions still require the official app. Continue steps are capped.
+
+A `429` response waits for the next scheduled cycle rather than making immediate
+retries. This applies to login, account connections and graph requests, including
+`status: 429` lockouts inside a successful HTTP response. Consecutive `429`
+responses add up to 15 minutes of delay on top of the polling interval. A
+`Retry-After` header or response lockout duration is respected within that limit.
+Repeated throttling also
+adds one minute to later polls for 15 minutes. Set
+`CONNECT_LINK_UP_STARTUP_JITTER_MS` (0–300000) and
+`CONNECT_LINK_UP_INTERVAL_JITTER_MS` (0–30000) to spread requests from multiple
+connectors. Both default to zero.
 
 For folks connected to many patients, you can provide the patient ID by setting
 the `CONNECT_LINK_UP_PATIENT_ID` variable.
 
 Optionally, you can override the default 5-minute refresh interval by providing
-`CONNECT_LINK_UP_INTERVAL` as an integer representing minutes.
+`CONNECT_LINK_UP_INTERVAL` as an integer from 1 to 60 representing minutes.
+For other request failures, `CONNECT_LINK_UP_MAX_RETRIES` controls retries within
+one cycle (0–5, default 2); `CONNECT_LINK_UP_RETRY_INTERVAL_MS` controls the delay
+between them (1000–900000, default 150000). These settings never enable immediate
+429 retries. `CONNECT_LINK_UP_REQUEST_TIMEOUT_MS` bounds each source request
+(1000–120000, default 30000), allowing polling to recover from stalled requests.
+The polling loop runs one cycle at a time and resumes when a delayed timer runs;
+it does not need the standalone uploader's missed-cron-execution handler.
+
+`CONNECT_LINK_UP_PROXY` can be `env` (the default, using standard proxy
+environment variables), `direct` (ignoring them), or an HTTP(S) proxy URL.
+Proxy credentials in the URL are passed to the proxy and should be kept private.
+`CONNECT_LINK_UP_STEALTH_TLS=true` optionally changes the order of Node's default
+TLS cipher offers, following the related v4 clients. It applies to direct HTTPS
+and proxy tunnels, preserves certificate verification, and requires TLS 1.2 or
+newer. It is off by default and cannot guarantee recovery from an Abbott lockout.
+
+Set `CONNECT_LINK_UP_SENSOR_INFO=true` to add sensor details to glucose entries
+and upload a `Sensor Start` treatment and LibreLinkUp device status. This is off
+by default. The treatment includes the sensor serial number; the device status
+contains hashes of sensor and device IDs. Existing sensor starts and statuses
+are checked on startup so a repeated graph does not create duplicate records.
+Sensor details include activation, age, warmup, state and patch type. Device
+details include app version, upload time, alarm settings and thresholds. For the
+current glucose reading, conflicting connection/active-sensor metadata produces
+a `sensorInfo.error` instead of assigning a sensor; the glucose still uploads.
 
 LibreLinkUp uploads graph readings and the current glucose item to avoid the
-historical graph delay. Nightscout duplicate handling is relied on for overlap.
+historical graph delay. After a gap, it replays the history returned by the graph
+endpoint. That endpoint has no requested date range, so older readings outside
+its returned window cannot be recovered by this connector. Nightscout duplicate
+handling is relied on for overlap.
 
 ### Minimed Carelink
 
