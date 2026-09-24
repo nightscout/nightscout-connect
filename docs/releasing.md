@@ -16,7 +16,7 @@ There are two kinds of tag.
 |---|---|---|
 | tag, when `package.json` says `0.1.0` | `v0.1.0-dev.1`, `v0.1.0-rc.1`, ... | `v0.1.0` |
 | refused, when `package.json` says `0.1.0` | `v0.0.16-dev.1`, `v0.1.1-dev.1`, `v0.2.0-dev.1` | anything but `v0.1.0` |
-| commit | `dev` as it stands | `dev` as it stands |
+| commit | `dev` as it stands | `main`, after `dev` is merged into it |
 | npm dist-tag | `next` | `latest` |
 | who gets it | only people who ask for it: `nightscout-connect@next` or an exact pin | `npm install nightscout-connect` |
 
@@ -30,8 +30,9 @@ commit the package was built from.
 Open a pull request into `dev` that sets the next version
 (`npm version 0.2.0 --no-git-tag-version` updates `package.json` and
 `package-lock.json`), and merge it. From then on, `dev` can be tagged
-`v0.2.0-dev.N` for prereleases and `v0.2.0` for the release. Do this right after
-a full release, so `dev` never declares a version that is already published.
+`v0.2.0-dev.N` for prereleases, and `main` is tagged `v0.2.0` once `dev` is
+merged into it. Do this right after a full release, so `dev` never declares a
+version that is already published.
 
 ## A prerelease from dev
 
@@ -47,17 +48,25 @@ Then approve the `publish` job in the Actions tab. For the next one, tag
 ## A full release
 
 1. Make sure `package.json` on `dev` says the version you are releasing.
-2. Tag `dev` and push the tag:
+2. Merge `dev` into `main` through a pull request, with a merge commit. Do not
+   squash or rebase: both rewrite the commits, so `main` stops sharing history
+   with `dev` and every later `dev` to `main` pull request diverges.
+3. Tag `main` and push the tag:
 
    ```sh
    git fetch origin
-   git tag -a v0.1.0 -m "nightscout-connect 0.1.0" origin/dev
+   git show origin/main:package.json | grep '"version"'
+   git tag -a v0.1.0 -m "nightscout-connect 0.1.0" origin/main
    git push origin v0.1.0
    ```
 
-3. Approve the `publish` job in the Actions tab.
-4. Merge `dev` into `main`.
+4. Approve the `publish` job in the Actions tab.
 5. Start the next version (above).
+
+If the workflow refuses the tag, `main` already declares a version that npm
+does not have. Fix the cause on `dev`, merge it into `main` again, delete the
+refused tag (below) and tag the new `main`. Nothing was published, so the
+version number is still available.
 
 ## What the workflow refuses
 
