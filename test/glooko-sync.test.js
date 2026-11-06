@@ -94,6 +94,33 @@ test('sync uses independent resource cursors and local clinical windows', async 
   assert.equal(result.glookoCursors.normalBoluses.lastGuid, 'normalBoluses');
   assert.equal(calls.find((c) => c.path.includes('/graph/')).p.endDate, '2026-07-01T14:00:00.000Z');
 });
+test('sync reads more than 4 pages of recent CGM during a backfill', async () => {
+  // 4 pages of history, then 6 pages for the last two days
+  let page = 0;
+  const get = async (path) => {
+    if (path.includes('/graph/')) return { series: {} };
+    const [key, , prop] = RESOURCES.find((r) => r[1] === path);
+    if (key !== 'egvs')
+      return { [prop || key]: [], lastPage: true, lastGuid: key, lastUpdatedAt: stamp };
+    page++;
+    return {
+      egvs: Array.from({ length: 500 }, (_, i) => ({ guid: `${page}-${i}`, glucoseValue: 100 })),
+      lastPage: page === 10,
+      lastGuid: 'page-' + page,
+      lastUpdatedAt: stamp
+    };
+  };
+  const result = await collect(
+    get,
+    { user: { userLogin: { glookoCode: 'synthetic' } } },
+    opts,
+    null,
+    new Date(stamp)
+  );
+  assert.equal(page, 10);
+  assert.equal(result.diagnostics.egvs.complete, false);
+  assert.equal(result.egvs.length, 5000);
+});
 test('timezone conversion covers winter, summer, Australia and explicit offsets', () => {
   for (const [zone, raw, expected] of [
     ['Europe/Berlin', '2026-01-01T12:00:00Z', '2026-01-01T11:00:00.000Z'],
